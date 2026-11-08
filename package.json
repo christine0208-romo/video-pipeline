@@ -1,0 +1,35 @@
+{
+  "name": "video-pipeline",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone footage scan + generated motion assets + non-repeating vertical mix pipeline.",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "doctor": "node tools/doctor.mjs",
+    "all": "node run.mjs all",
+    "scan": "node run.mjs scan",
+    "generate": "node run.mjs generate",
+    "mix": "node run.mjs mix",
+    "stills": "node run.mjs stills",
+    "check": "node tools/check.mjs",
+    "check:edl": "node modules/mix/index.mjs --check-only",
+    "typecheck": "tsc --noEmit",
+    "studio": "remotion studio src/index.ts"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.539",
+    "@remotion/paths": "4.0.539",
+    "lucide-react": "1.69.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "remotion": "4.0.539"
+  },
+  "devDependencies": {
+    "@types/react": "19.2.7",
+    "@types/web": "0.0.166",
+    "typescript": "5.9.3"
+  }
+}

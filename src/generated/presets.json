@@ -1,0 +1,34 @@
+{
+  "presets": [
+    {
+      "id": "platform-orbit",
+      "supportsAlpha": true,
+      "description": "品牌图标环绕、聚拢、落位"
+    },
+    {
+      "id": "social-constellation",
+      "supportsAlpha": true,
+      "description": "图标星座与连线脉冲"
+    },
+    {
+      "id": "network-universe",
+      "supportsAlpha": true,
+      "description": "点阵世界地图与跨区域连线"
+    },
+    {
+      "id": "icon-morph",
+      "supportsAlpha": true,
+      "description": "图标之间遮罩擦除式转换"
+    },
+    {
+      "id": "ui-mock",
+      "supportsAlpha": false,
+      "description": "手机界面示意：短信、通话、账号、注册"
+    },
+    {
+      "id": "kinetic-grid",
+      "supportsAlpha": true,
+      "description": "透视网格与穿越光门"
+    }
+  ]
+}

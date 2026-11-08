@@ -1,0 +1,68 @@
+{
+  "icons": {
+    "whatsapp": "assets/icons/whatsapp.svg",
+    "facebook": "assets/icons/facebook.svg",
+    "instagram": "assets/icons/instagram.svg",
+    "telegram": "assets/icons/telegram.svg",
+    "x": "assets/icons/x-twitter.svg",
+    "youtube": "assets/icons/youtube.svg",
+    "tiktok": "assets/icons/tiktok.svg",
+    "wechat": "assets/icons/wechat.svg",
+    "discord": "assets/icons/discord.svg",
+    "line": "assets/icons/line.svg",
+    "threads": "assets/icons/threads.svg",
+    "snapchat": "assets/icons/snapchat.svg",
+    "pinterest": "assets/icons/pinterest.svg",
+    "spotify": "assets/icons/spotify.svg",
+    "globe": "assets/icons/globe.svg",
+    "phone": "assets/icons/phone.svg",
+    "sim": "assets/icons/sim-card.svg",
+    "wifi": "assets/icons/wifi.svg",
+    "router": "assets/icons/router.svg",
+    "mail": "assets/icons/mail.svg",
+    "qr": "assets/icons/qr-code.svg",
+    "smartphone": "assets/icons/smartphone.svg"
+  },
+  "social": [
+    "assets/icons/whatsapp.svg",
+    "assets/icons/facebook.svg",
+    "assets/icons/instagram.svg",
+    "assets/icons/telegram.svg",
+    "assets/icons/x-twitter.svg",
+    "assets/icons/youtube.svg",
+    "assets/icons/tiktok.svg"
+  ],
+  "messaging": [
+    "assets/icons/whatsapp.svg",
+    "assets/icons/telegram.svg",
+    "assets/icons/wechat.svg",
+    "assets/icons/line.svg",
+    "assets/icons/discord.svg",
+    "assets/icons/instagram.svg"
+  ],
+  "connect": [
+    "assets/icons/smartphone.svg",
+    "assets/icons/sim-card.svg",
+    "assets/icons/wifi.svg",
+    "assets/icons/globe.svg",
+    "assets/icons/router.svg",
+    "assets/icons/mail.svg"
+  ],
+  "platforms": [
+    { "name": "WhatsApp", "icon": "assets/icons/whatsapp.svg" },
+    { "name": "Facebook", "icon": "assets/icons/facebook.svg" },
+    { "name": "Instagram", "icon": "assets/icons/instagram.svg" },
+    { "name": "Telegram", "icon": "assets/icons/telegram.svg" },
+    { "name": "X", "icon": "assets/icons/x-twitter.svg" },
+    { "name": "YouTube", "icon": "assets/icons/youtube.svg" },
+    { "name": "TikTok", "icon": "assets/icons/tiktok.svg" },
+    { "name": "WeChat", "icon": "assets/icons/wechat.svg" },
+    { "name": "Discord", "icon": "assets/icons/discord.svg" },
+    { "name": "LINE", "icon": "assets/icons/line.svg" }
+  ],
+  "whiteIcons": [
+    "assets/icons/facebook.svg",
+    "assets/icons/instagram.svg",
+    "assets/icons/tiktok.svg"
+  ]
+}

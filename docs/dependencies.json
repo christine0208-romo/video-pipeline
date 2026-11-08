@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "policy": "package.json 里的每个依赖都必须在这里登记；未登记视为未批准，npm run check 会失败。",
+  "approved": {
+    "remotion": {
+      "version": "4.0.539",
+      "purpose": "视频框架与 OffthreadVideo / Audio / Sequence",
+      "license": "Remotion License（个人与 ≤3 人公司免费，更大组织需购买）",
+      "deterministic": "frame-driven"
+    },
+    "@remotion/cli": {
+      "version": "4.0.539",
+      "purpose": "渲染与 Studio CLI",
+      "license": "Remotion License",
+      "deterministic": "build-time"
+    },
+    "@remotion/paths": {
+      "version": "4.0.539",
+      "purpose": "vendored 动效库中的路径测量与沿线运动",
+      "license": "MIT",
+      "deterministic": "frame-driven"
+    },
+    "react": {
+      "version": "19.2.3",
+      "purpose": "组件运行时",
+      "license": "MIT",
+      "deterministic": "frame-driven"
+    },
+    "react-dom": {
+      "version": "19.2.3",
+      "purpose": "DOM 渲染",
+      "license": "MIT",
+      "deterministic": "frame-driven"
+    },
+    "lucide-react": {
+      "version": "1.69.0",
+      "purpose": "通用图标（手机、短信、电话、盾牌等）",
+      "license": "ISC",
+      "deterministic": "静态 SVG"
+    },
+    "typescript": {
+      "version": "5.9.3",
+      "purpose": "类型检查",
+      "license": "Apache-2.0",
+      "deterministic": "build-time"
+    },
+    "@types/react": {
+      "version": "19.2.7",
+      "purpose": "React 类型",
+      "license": "MIT",
+      "deterministic": "build-time"
+    },
+    "@types/web": {
+      "version": "0.0.166",
+      "purpose": "DOM 类型",
+      "license": "MIT",
+      "deterministic": "build-time"
+    }
+  }
+}

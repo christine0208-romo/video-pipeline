@@ -1,0 +1,76 @@
+{
+  "packs": [
+    {
+      "id": "horizontal-table",
+      "name": "横向对比台",
+      "description": "三张卡并排在同一张桌上，镜头横向平移，靠哪张看哪张的优点/缺点；没有页签，靠空间关系表达对照。",
+      "narratives": ["parallel"],
+      "requiredEvidence": ["footage", "ui"],
+      "avoid": ["一屏一卡切换", "纯文字表格", "三栏同时塞满"]
+    },
+    {
+      "id": "split-debate",
+      "name": "左右辩论",
+      "description": "接码号与实卡同时在场，中间 VS 分隔，左右红/蓝，旁白点到哪边哪边亮；靠对峙关系表达差别。",
+      "narratives": ["debate"],
+      "requiredEvidence": ["footage", "ui"],
+      "avoid": ["一屏一侧切换", "页签式对照", "纯表格"]
+    },
+    {
+      "id": "field-notes",
+      "name": "手写核查单",
+      "description": "实拍卡面全屏，手写标题与勾/叉/印章逐项盖上；像一张现场核查单，不出现卡片面板。",
+      "narratives": ["checklist"],
+      "requiredEvidence": ["footage"],
+      "avoid": ["左右分栏", "英雄卡", "大面积面板"]
+    },
+    {
+      "id": "icon-journey",
+      "name": "图标旅程",
+      "description": "平台图标作为贯穿物：图标 → 官方门槛截图 → 失败原因 → 产品证明 → 账号成功；每拍只推进一个证据。",
+      "narratives": ["journey"],
+      "requiredEvidence": ["screenshot", "footage", "ui"],
+      "avoid": ["多栏并排", "每拍换主体", "纯文字说明"]
+    },
+    {
+      "id": "clip-remix",
+      "name": "片段混剪",
+      "description": "实拍片段与代码生成片段同一时间线快切；文字与图标只做叠加层，出处不上屏。",
+      "narratives": ["remix"],
+      "requiredEvidence": ["footage", "generated"],
+      "avoid": ["卡片容器", "截图证据板", "出处角标"]
+    }
+  ],
+  "narratives": {
+    "parallel": {
+      "name": "平行对照",
+      "shape": "hook → 三种对象各自陈述 → 一句总结 → CTA",
+      "rules": ["每个对象至少一条优点和一条缺点", "对象顺序固定", "总结句只做选择依据"]
+    },
+    "debate": {
+      "name": "正反交锋",
+      "shape": "hook → 正题 → 反题 → 反驳/条件 → CTA",
+      "rules": ["左右必须互相回应", "每侧不超过 3 条", "最后落到适用条件，不做绝对判断"]
+    },
+    "checklist": {
+      "name": "问句核查",
+      "shape": "hook → 问一句/答一句 → 勾选 → CTA",
+      "rules": ["每个问题对应一个动作", "答案必须可执行", "不超过 5 项"]
+    },
+    "myth": {
+      "name": "误区拆解",
+      "shape": "hook → 常见说法 → 拆解 → 替代方案 → CTA",
+      "rules": ["先立后破", "不制造恐慌", "给出可执行替代"]
+    },
+    "journey": {
+      "name": "证据推进",
+      "shape": "hook（平台图标）→ 官方门槛 → 失败原因 → 产品证明 → CTA",
+      "rules": ["同一平台图标贯穿全片", "每拍只推进一个证据", "产品实拍必须出现", "第三方截图标出处"]
+    },
+    "remix": {
+      "name": "片段混剪",
+      "shape": "hook（实拍/生成片段快切）→ 门槛 → 失败 → 证明 → CTA",
+      "rules": ["以片段为主体", "每句 1–3 个切点", "至少一个产品实拍证明", "出处不上屏"]
+    }
+  }
+}
