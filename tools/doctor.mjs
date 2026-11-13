@@ -74,6 +74,18 @@ if (cfg) {
     if (result.status === 0) ok(`${name} 可用：${bin}`);
     else bad(`${name} 不可用：${bin}（改 tools.${name} 或设 ${name.toUpperCase()}_PATH）`);
   }
+
+  const decoders = spawnSync(
+    cfg.tools.ffmpeg,
+    ["-hide_banner", "-decoders"],
+    { encoding: "utf8" },
+  );
+  const decoderList = `${decoders.stdout ?? ""}${decoders.stderr ?? ""}`;
+  if (decoders.status === 0 && /libvpx-vp9/.test(decoderList)) {
+    ok("ffmpeg 支持 libvpx-vp9（透明 WebM alpha 分析）");
+  } else {
+    warn("ffmpeg 缺少 libvpx-vp9，透明 WebM 的 alpha 覆盖率分析会失败");
+  }
 }
 
 const browser = findBrowser();
@@ -85,6 +97,8 @@ for (const file of [
   "common/assets/fonts/NotoSansSC-Regular.otf",
   "common/assets/icons/whatsapp.svg",
   "common/assets/map/world-dots.json",
+  "common/assets/sfx/index.json",
+  "common/assets/music/index.json",
   "common/shots/INDEX.md",
   "common/vendor/fy-LICENSE.md",
 ]) {
@@ -114,10 +128,13 @@ const footageLink = path.join(ROOT, "public", "footage");
 if (!existsSync(footageLink)) {
   warn("public/footage 尚未建立（首次 scan 会建立）");
 } else {
-  const roots = readdirSync(footageLink, { withFileTypes: true }).filter((entry) =>
+  const entries = readdirSync(footageLink, { withFileTypes: true }).filter((entry) =>
     entry.isDirectory() || entry.isSymbolicLink(),
   );
-  ok(`public/footage：${roots.length} 个素材根链接`);
+  const linked = entries.filter((entry) => entry.isSymbolicLink()).length;
+  const copied = entries.length - linked;
+  if (copied) warn(`public/footage：${linked} 个链接，${copied} 个实体目录；缺失素材根恢复后运行 node run.mjs public --apply`);
+  else ok(`public/footage：${linked} 个素材根链接`);
 }
 
 try {
@@ -155,4 +172,4 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(`体检通过：${warnings.length} 个警告。`);
-console.log("下一步：node run.mjs scan  →  node run.mjs generate  →  node run.mjs mix");
+console.log("下一步：node run.mjs scan  →  node run.mjs generate  →  node run.mjs quality  →  node run.mjs mix");

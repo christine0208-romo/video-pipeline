@@ -11,7 +11,7 @@ import {
   useVideoConfig,
 } from "remotion";
 import { FONT_MANIFEST, clamp01, easeOutCubic, useFonts } from "./platform";
-import type { MixEdl, MixShot, ShotTransform } from "./mix/types";
+import type { MixAudioMusic, MixEdl, MixShot, ShotTransform } from "./mix/types";
 
 const FPS_FALLBACK = 30;
 
@@ -120,6 +120,28 @@ const TransitionFx: React.FC<{ type?: MixShot["transitionIn"] }> = ({ type }) =>
   return null;
 };
 
+const TransitionClip: React.FC<{
+  asset: NonNullable<MixShot["transitionAsset"]>;
+}> = ({ asset }) => {
+  const { fps } = useVideoConfig();
+  const frames = Math.max(1, Math.round(asset.dur * fps));
+  return (
+    <Sequence from={0} durationInFrames={frames} name="transition">
+      <Video
+        src={staticFile(asset.src)}
+        muted
+        style={{
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+        }}
+      />
+    </Sequence>
+  );
+};
+
 const FootageView: React.FC<{ shot: MixShot }> = ({ shot }) => {
   const frame = useCurrentFrame();
   const { fps, width } = useVideoConfig();
@@ -157,6 +179,12 @@ const FootageView: React.FC<{ shot: MixShot }> = ({ shot }) => {
   const startFrom = Math.round((shot.in ?? 0) * sourceFps);
   const endAt = Math.round(((shot.in ?? 0) + shot.dur * speed) * sourceFps);
   const focus = transform.focus ?? [0.5, 0.5];
+  const overlayFrames = shot.overlay
+    ? Math.max(1, Math.round(shot.overlay.dur * fps))
+    : 0;
+  const overlayDelay = shot.transitionAsset
+    ? Math.round(shot.transitionAsset.dur * fps)
+    : 0;
 
   return (
     <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "#000" }}>
@@ -186,22 +214,37 @@ const FootageView: React.FC<{ shot: MixShot }> = ({ shot }) => {
       {transform.overlay === "grain" ? <Grain /> : null}
       {transform.overlay === "scanline" ? <Scanline /> : null}
       {transform.overlay === "vignette" ? <Vignette /> : null}
-      {shot.overlay ? (
-        <AbsoluteFill
-          style={{
-            alignItems: "center",
-            justifyContent: "center",
-            pointerEvents: "none",
-          }}
+      {shot.overlay && overlayFrames > overlayDelay ? (
+        <Sequence
+          from={overlayDelay}
+          durationInFrames={overlayFrames - overlayDelay}
+          name="overlay"
         >
-          <Video
-            src={staticFile(shot.overlay.src)}
-            muted
-            style={{ width: "100%", height: "100%", objectFit: "contain" }}
-          />
-        </AbsoluteFill>
+          <AbsoluteFill
+            style={{
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+            }}
+          >
+            <Video
+              src={staticFile(shot.overlay.src)}
+              muted
+              style={{
+                width: "100%",
+                height: "100%",
+                objectFit: "contain",
+                mixBlendMode: shot.overlay.blend ?? "normal",
+              }}
+            />
+          </AbsoluteFill>
+        </Sequence>
       ) : null}
-      <TransitionFx type={shot.transitionIn} />
+      {shot.transitionAsset ? (
+        <TransitionClip asset={shot.transitionAsset} />
+      ) : (
+        <TransitionFx type={shot.transitionIn} />
+      )}
     </AbsoluteFill>
   );
 };
@@ -246,7 +289,11 @@ const GeneratedView: React.FC<{ shot: MixShot }> = ({ shot }) => {
       {transform.overlay === "grain" ? <Grain /> : null}
       {transform.overlay === "scanline" ? <Scanline /> : null}
       {transform.overlay === "vignette" ? <Vignette /> : null}
-      <TransitionFx type={shot.transitionIn} />
+      {shot.transitionAsset ? (
+        <TransitionClip asset={shot.transitionAsset} />
+      ) : (
+        <TransitionFx type={shot.transitionIn} />
+      )}
     </AbsoluteFill>
   );
 };
@@ -266,9 +313,21 @@ const ImageView: React.FC<{ shot: MixShot }> = ({ shot }) => {
           transform: `scale(${1.02 + 0.06 * easeOutCubic(p)})`,
         }}
       />
-      <TransitionFx type={shot.transitionIn} />
+      {shot.transitionAsset ? (
+        <TransitionClip asset={shot.transitionAsset} />
+      ) : (
+        <TransitionFx type={shot.transitionIn} />
+      )}
     </AbsoluteFill>
   );
+};
+
+const MUSIC_ROLE_GAIN: Record<string, number> = {
+  hook: 0.9,
+  build: 1,
+  proof: 1,
+  turn: 0.7,
+  close: 0.55,
 };
 
 export const MixVideo: React.FC<{ edl: MixEdl }> = ({ edl }) => {
@@ -276,21 +335,64 @@ export const MixVideo: React.FC<{ edl: MixEdl }> = ({ edl }) => {
   if (!ready) return null;
 
   const shots = edl.beats.flatMap((beat) => beat.shots);
+  const music: MixAudioMusic | null =
+    edl.audio?.music ??
+    (edl.audio?.src
+      ? { src: edl.audio.src, volume: edl.audio.volume }
+      : null);
+  const sfx = edl.audio?.sfx ?? [];
+  const sfxWindows = sfx.map(
+    (item) => [item.at, item.at + (item.dur ?? 0.35)] as const,
+  );
+
+  const musicVolume = (f: number) => {
+    if (!music) return 0;
+    const t = f / edl.fps;
+    const total = edl.durationInFrames / edl.fps;
+    const fadeIn = Math.max(0.001, music.fadeIn ?? 0.6);
+    const fadeOut = Math.max(0.001, music.fadeOut ?? 0.6);
+    const inGain = Math.min(1, t / fadeIn);
+    const outGain = Math.min(1, (total - t) / fadeOut);
+    const beat = edl.beats.find((item) => t >= item.at && t < item.at + item.dur);
+    const roleGain = MUSIC_ROLE_GAIN[beat?.role ?? "proof"] ?? 0.9;
+    const ducked = sfxWindows.some(
+      ([start, end]) => t >= start - 0.05 && t <= end + 0.12,
+    );
+    const base = music.volume ?? 0.32;
+    const level = ducked ? (music.duckTo ?? base * 0.4) : base;
+    return level * roleGain * Math.max(0, Math.min(inGain, outGain));
+  };
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#000" }}>
-      {edl.audio?.src ? (
+      {music ? (
         <Audio
-          src={staticFile(edl.audio.src)}
-          volume={(f) => {
-            const total = edl.durationInFrames;
-            const fade = Math.max(1, Math.round(edl.fps * 0.6));
-            const inGain = Math.min(1, f / fade);
-            const outGain = Math.min(1, (total - f) / fade);
-            return (edl.audio?.volume ?? 0.35) * Math.max(0, Math.min(inGain, outGain));
-          }}
+          src={staticFile(music.src)}
+          volume={musicVolume}
+          loop={Boolean(music.loop)}
         />
       ) : null}
+      {sfx.map((item, index) => {
+        const from = Math.max(0, Math.round(item.at * edl.fps));
+        if (from >= edl.durationInFrames) return null;
+        const durationInFrames = Math.max(
+          1,
+          Math.min(
+            Math.round((item.dur ?? 0.35) * edl.fps),
+            edl.durationInFrames - from,
+          ),
+        );
+        return (
+          <Sequence
+            key={`sfx-${item.assetId ?? index}-${index}`}
+            from={from}
+            durationInFrames={durationInFrames}
+            name={`sfx-${item.category ?? "sfx"}`}
+          >
+            <Audio src={staticFile(item.src)} volume={item.volume ?? 0.4} />
+          </Sequence>
+        );
+      })}
       {shots.map((shot, index) => {
         const from = Math.round(shot.at * edl.fps);
         const durationInFrames = Math.max(1, Math.round(shot.dur * edl.fps));

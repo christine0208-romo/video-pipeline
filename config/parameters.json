@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "stages": {
+    "scan": {
+      "label": "扫描素材",
+      "fields": [
+        {"name":"limit","flag":"limit","label":"限制条数","type":"number","placeholder":"全部"},
+        {"name":"roots","flag":"roots","label":"素材根（逗号分隔）","type":"text","placeholder":"默认 config"},
+        {"name":"check","flag":"check","label":"只检查是否有变化","type":"checkbox"}
+      ]
+    },
+    "generate": {
+      "label": "生成素材",
+      "fields": [
+        {"name":"only","flag":"only","label":"只生成 preset","type":"text","placeholder":"platform-orbit"},
+        {"name":"recipe","flag":"recipe","label":"只生成 recipe","type":"text","placeholder":"text-char-rise"},
+        {"name":"variants","flag":"variants","label":"每组变体数","type":"number","placeholder":"配置值"},
+        {"name":"force","flag":"force","label":"强制重渲","type":"checkbox"},
+        {"name":"dryRun","flag":"dry-run","label":"只规划不渲染","type":"checkbox"},
+        {"name":"review","flag":"review","label":"运行后列出审核状态","type":"checkbox"}
+      ]
+    },
+    "quality": {
+      "label": "质量分析",
+      "fields": [
+        {"name":"force","flag":"force","label":"强制重算","type":"checkbox"},
+        {"name":"reportOnly","flag":"report-only","label":"只读已存结果","type":"checkbox"},
+        {"name":"strict","flag":"strict","label":"有问题时失败","type":"checkbox"},
+        {"name":"layer","flag":"layer","label":"层","type":"text","placeholder":"scene,overlay,transition"},
+        {"name":"scope","flag":"scope","label":"范围","type":"text","placeholder":"shared / work"},
+        {"name":"edl","flag":"edl","label":"检查指定 EDL","type":"text","placeholder":"mix-20261117-1"}
+      ]
+    },
+    "mix": {
+      "label": "混剪成片",
+      "fields": [
+        {"name":"duration","flag":"duration","label":"时长（秒）","type":"number","placeholder":"30"},
+        {"name":"outputs","flag":"outputs","label":"成片条数","type":"number","placeholder":"1"},
+        {"name":"seed","flag":"seed","label":"seed","type":"number","placeholder":"配置值"},
+        {"name":"shotLength","flag":"shot-length","label":"目标镜头长度（秒）","type":"number","placeholder":"2.2"},
+        {"name":"work","flag":"work","label":"只用指定 work","type":"text","placeholder":"work-20261121-1"},
+        {"name":"requireWorkAsset","flag":"require-work-asset","label":"必须使用 work 素材","type":"checkbox"},
+        {"name":"dryRun","flag":"dry-run","label":"只规划不渲染","type":"checkbox"},
+        {"name":"noMusic","flag":"no-music","label":"关闭 BGM","type":"checkbox"},
+        {"name":"noSfx","flag":"no-sfx","label":"关闭 SFX","type":"checkbox"},
+        {"name":"allowDraft","flag":"allow-draft","label":"允许 draft","type":"checkbox"},
+        {"name":"allowLow","flag":"allow-low-quality","label":"允许低质量素材","type":"checkbox"}
+      ]
+    },
+    "fission": {
+      "label": "批量裂变",
+      "fields": [
+        {"name":"works","flag":"works","label":"作品数量","type":"number","placeholder":"1"},
+        {"name":"withAssets","flag":"with-assets","label":"生成作品专属素材","type":"checkbox"},
+        {"name":"seed","flag":"seed","label":"seed","type":"number","placeholder":"配置值"},
+        {"name":"duration","flag":"duration","label":"每条时长（秒）","type":"number","placeholder":"30"},
+        {"name":"perLayer","flag":"per-layer","label":"每层素材 scene,overlay,transition","type":"text","placeholder":"1,2,2"},
+        {"name":"work","flag":"work","label":"只做指定 work","type":"text","placeholder":"t1"},
+        {"name":"dryRun","flag":"dry-run","label":"只规划不渲染","type":"checkbox"},
+        {"name":"force","flag":"force","label":"强制重渲素材","type":"checkbox"}
+      ]
+    },
+    "check": {"label":"校验已有 EDL","fields":[]}
+  }
+}

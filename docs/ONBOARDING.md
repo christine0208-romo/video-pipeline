@@ -86,6 +86,13 @@ node run.mjs mix --duration 12 --outputs 1 --seed 20261108
 
 - 想改选镜：`modules/mix/planner.mjs`。
 - 想加 preset：`src/generated/presets/` + `presets.json` + `registry.ts`。
+- 想加 recipe：`src/generated/recipes.json` + `config/pipeline.json`；审核用 `generate --review` / `--approve`。
+- 想裂变作品：`node run.mjs fission`；作品素材隔离、缓存与清理见 `docs/FISSION.md`。
+- 想调裂变差异：改 `src/generated/variation.json` 的版式/背景/光色/文案/节奏/素材主题轴。
+- 想查观感重复 / 覆盖：`node run.mjs quality`，看 `out/quality/report.md`；规则见 `docs/QUALITY.md`。
+- 想用可视化工作台：`npm run workbench`，打开 `http://127.0.0.1:4317/`；见 `docs/WORKBENCH.md`。
+- 想加音效/BGM：先看 `docs/AUDIO.md`，再登记 `common/assets/{sfx,music}/index.json`。
+- 想加动效：先看 `docs/MOTION_PROMPTS.md` 的 90 条库与竖屏换算。
 - 想加标签：`modules/lib/tagger.mjs`。
 - 想加依赖：`docs/DEPENDENCIES.md`。
 - 遇到坑：先看 `docs/LESSONS.md` 与 `docs/TROUBLESHOOTING.md`。

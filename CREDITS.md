@@ -38,6 +38,26 @@
 - 署名见 `common/assets/music/LICENSES.md`
 - 默认混剪未启用音乐；启用时必须在成片说明或发布信息中保留署名。
 
+## 背景音乐（新增）
+
+- `common/assets/music/aeris-afterglow-vast.mp3`、`aeris-horizon-monolith.mp3`、`aeris-signal-lost.mp3`
+- 作者：AERIS MUSIC
+- 许可：CC0 1.0，无需署名，可商用
+- 来源：https://github.com/farmmer938-lgtm/aeris-cc0-music
+- 元数据、BPM、情绪与选曲依据：`common/assets/music/index.json`
+
+## 音效
+
+- `common/assets/sfx/*.wav`
+- 来源：Kenney
+  - UI Audio：https://kenney.nl/assets/ui-audio
+  - Interface Sounds：https://kenney.nl/assets/interface-sounds
+  - Impact Sounds：https://kenney.nl/assets/impact-sounds
+  - Digital Audio：https://kenney.nl/assets/digital-audio
+- 许可：CC0 1.0，无需署名，可商用
+- 原始文件、镜像与映射：`common/assets/sfx/index.json`
+- 本地处理：转为 48kHz / 16-bit WAV，并做 -18 LUFS 归一化。
+
 ## 镜头卡
 
 - 来源：video-shotcraft

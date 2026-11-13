@@ -12,12 +12,19 @@
     "all": "node run.mjs all",
     "scan": "node run.mjs scan",
     "generate": "node run.mjs generate",
+    "quality": "node run.mjs quality",
     "mix": "node run.mjs mix",
+    "fission": "node run.mjs fission",
     "stills": "node run.mjs stills",
     "check": "node tools/check.mjs",
     "check:edl": "node modules/mix/index.mjs --check-only",
+    "cache": "node run.mjs cache",
+    "reindex": "node run.mjs reindex",
+    "runtime": "node run.mjs runtime",
     "typecheck": "tsc --noEmit",
-    "studio": "remotion studio src/index.ts"
+    "studio": "remotion studio src/index.ts",
+    "workbench": "node workbench/server.mjs",
+    "workbench:open": "node workbench/server.mjs --open"
   },
   "dependencies": {
     "@remotion/cli": "4.0.539",

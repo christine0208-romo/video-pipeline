@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "video-pipeline/pipeline.schema.json",
+  "title": "Video Pipeline Project Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["spec", "dataDir", "outDir", "runtime", "tools", "footage", "generate", "mix", "fission", "quality"],
+  "properties": {
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["width", "height", "fps"],
+      "properties": {
+        "width": {"type": "integer", "minimum": 1},
+        "height": {"type": "integer", "minimum": 1},
+        "fps": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "dataDir": {"type": "string", "minLength": 1},
+    "outDir": {"type": "string", "minLength": 1},
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["publicDir", "cacheDir", "tempDir", "releaseDir"],
+      "properties": {
+        "publicDir": {"type": "string", "minLength": 1},
+        "cacheDir": {"type": "string", "minLength": 1},
+        "tempDir": {"type": "string", "minLength": 1},
+        "releaseDir": {"type": "string", "minLength": 1}
+      }
+    },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ffmpeg", "ffprobe"],
+      "properties": {
+        "ffmpeg": {"type": "string", "minLength": 1},
+        "ffprobe": {"type": "string", "minLength": 1}
+      }
+    },
+    "footage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roots", "extensions", "exclude", "sidecars", "cropDetect", "sceneSplit", "thumbs"],
+      "properties": {
+        "roots": {"type": "array", "items": {"type": "string", "minLength": 1}},
+        "extensions": {"type": "array", "items": {"type": "string", "pattern": "^\\.[a-z0-9]+$"}},
+        "exclude": {"type": "array", "items": {"type": "string"}},
+        "sidecars": {"type": "array", "items": {"type": "string"}},
+        "cropDetect": {"type": "boolean"},
+        "sceneSplit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "threshold", "minShot", "pad"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "threshold": {"type": "number", "minimum": 0, "maximum": 1},
+            "minShot": {"type": "number", "exclusiveMinimum": 0},
+            "pad": {"type": "number", "minimum": 0}
+          }
+        },
+        "thumbs": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled", "count", "width"],
+          "properties": {
+            "enabled": {"type": "boolean"},
+            "count": {"type": "integer", "minimum": 1},
+            "width": {"type": "integer", "minimum": 1}
+          }
+        }
+      }
+    },
+    "generate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["presets", "recipes", "variantsPerPreset", "variantsPerRecipe", "duration", "formats"],
+      "properties": {
+        "presets": {"type": "array", "items": {"type": "string"}},
+        "recipes": {"type": "array", "items": {"type": "string"}},
+        "variantsPerPreset": {"type": "integer", "minimum": 1},
+        "variantsPerRecipe": {"type": "integer", "minimum": 1},
+        "duration": {"type": "number", "exclusiveMinimum": 0},
+        "formats": {"type": "array", "items": {"enum": ["mp4", "webm-alpha"]}}
+      }
+    },
+    "mix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["duration", "outputs", "seed", "maxPerAsset", "maxPerRecipe", "minGap", "generatedRatio", "shotLength", "beatJitter", "minShots", "maxShots", "allowDraft", "allowLowQuality", "perceptualDedupe", "requireWorkAsset", "bpm", "music", "sfx", "beats"],
+      "properties": {
+        "duration": {"type": "number", "exclusiveMinimum": 0},
+        "outputs": {"type": "integer", "minimum": 1},
+        "seed": {"type": "integer"},
+        "maxPerAsset": {"type": "integer", "minimum": 1},
+        "maxPerRecipe": {"type": "integer", "minimum": 1},
+        "minGap": {"type": "number", "minimum": 0},
+        "generatedRatio": {"type": "number", "minimum": 0, "maximum": 1},
+        "shotLength": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min", "max"],
+          "properties": {
+            "min": {"type": "number", "exclusiveMinimum": 0},
+            "max": {"type": "number", "exclusiveMinimum": 0}
+          }
+        },
+        "beatJitter": {"type": "number", "minimum": 0, "maximum": 1},
+        "minShots": {"type": "integer", "minimum": 1},
+        "maxShots": {"type": "integer", "minimum": 1},
+        "allowDraft": {"type": "boolean"},
+        "allowLowQuality": {"type": "boolean"},
+        "perceptualDedupe": {"type": "boolean"},
+        "requireWorkAsset": {"type": "boolean"},
+        "bpm": {"type": ["number", "null"], "exclusiveMinimum": 0},
+        "music": {"type": ["object", "null"]},
+        "sfx": {"type": "object"},
+        "beats": {"type": "array", "minItems": 1, "items": {"type": "object"}}
+      }
+    },
+    "fission": {"type": "object"},
+    "quality": {"type": "object"}
+  }
+}

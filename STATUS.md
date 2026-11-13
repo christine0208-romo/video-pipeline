@@ -1,11 +1,37 @@
 # STATUS
 
-- 状态：独立工作区已建立，并完成首次全流程验证。
+- 状态：P0 / P1 已验收；P2 裂变 + 多轴 variation + 感知质量层 + 镜头节奏 + 本地 Web 工作台 + 生成素材解耦/分类/完整性检查已落地并验证。
 - 建立日期：2026-11-08
 - 当前规格：1080×1920 / 30fps
 - 当前素材根：`D:/Files/AI_Vedio/1_素材库/vedio`
-- 当前生成目录：6 个 preset，每类 1 组（首次验证用）
-- 当前混剪默认：30 秒 / 1 条 / 静音 / 每类 2 组变体（配置默认值）
+- 当前生成目录：92 条 catalog（70 approved + 13 draft + 9 retired）；霓虹系列共 14 条（`platform-icons-neon` 7 + `platform-icons-neon-global` 7）。
+- 当前成片：`out/sim-card-promo.mp4`，33.56s，1080×1920 / 30fps / H.264 + AAC；TTS + BGM，-16.7 LUFS / -1.4 dBFS。
+- 当前混剪默认：30 秒 / 1 条 / 自动 BGM / SFX 开启 / 每类 2 组变体 / 质量闸门 + 同片感知去重开启 / 目标镜头长度 1.4–2.6 秒 + 每作品节拍抖动 15%
+
+## 会话交接（2026-11-08 · 质量层 + 镜头节奏 + 素材解耦）
+
+- 本轮完成：P2 感知质量层。
+  - `modules/lib/vision.mjs`：ffmpeg 抽 32px 原始帧，JS 实现 2D DCT pHash、alpha 覆盖率、运动能量、亮度/对比度、平均色。
+  - `modules/quality/{analyze,similarity,report,index}.mjs`：catalog `quality` 写回、感知聚类、近似重复、覆盖矩阵、报告。
+  - CLI：`node run.mjs quality [--force|--report-only|--list|--strict|--edl <id>|--layer|--scope|--work]`。
+  - `generate` / `fission` 渲染后自动分析；planner 默认跳过 `quality.ok=false`，并在同一条成片内做感知去重。
+  - 新文档 `docs/QUALITY.md`；新增 ADR-016 与 3 条 LESSONS。
+- 当前 catalog：92 条（83 活跃 + 9 退役）全部有 `quality`；45 感知簇，多样性 0.542，130 对近似重复，0 条质量失败，5 条 `faint-alpha`/`static` 警告。
+- 霓虹图标系列：`platform-icons-neon`（I01，overlay / icon / shared，3s，cyber 色板）。seriesIndex 0 为基础散布，1..6 为 WhatsApp / Telegram / WeChat / LINE / Discord / Instagram；故障在第 30 帧（1.0s）爆发，含 RGB 色散、切片、冲击环；基础款静态是预期行为。
+- 全球平台霓虹系列：`platform-icons-neon-global`（I02），seriesIndex 0 基础，1..6 为 ChatGPT / Instagram / Facebook / Telegram / X / WhatsApp；故障在第 12 帧（0.4s）爆发，用于逐词踩点。
+- SIM 卡推广片：`projects/sim-card-promo/`；`out/sim-card-promo.mp4` 33.56s，19 镜头，TTS 29.756s（zh-CN-YunxiNeural +60%），片尾 CTA 叠在压暗 SIM 卡实拍上、无口播；BGM `aeris-horizon-monolith`（CC0），-16.7 LUFS / -1.4 dBFS。
+- 素材取舍：T08 `text-count` / P05 `particle-flow` 标记 `disabled` 并移出 `generate.recipes`；现有 9 条相关素材退役。相似素材按 `series` 聚组，`seriesIndex` 表变体；工作台支持“按系列分组”，默认隐藏退役素材。
+- 生成素材解耦：`fission` 默认只用 shared 素材库，不生成 work 素材；`--with-assets` 才生成。`mix --work` 不再强制专属素材，`requireWorkAsset` 默认关闭。
+- 素材分类/完整性：catalog 增加 `category / series / seriesIndex / loop`；质量增加 `firstLastHamming / endMotion / alphaEnd` 与 `loop-mismatch / end-unsettled / end-residue`。`icon-morph` 改为完整循环（首尾 Hamming 2/0），`particle-orbs` / `particle-dust` 改为整数周期循环。
+- 工作台：分类、状态、质量标记改为中文展示，并增加类型筛选。
+- 工作台：`npm run workbench`，`http://127.0.0.1:4317/`；概览 / 素材 / 任务 / 成片 / 质量五页；单任务队列、SSE 实时日志、取消、Range 视频预览、素材 approve/reject/share/clean-work；文档 `docs/WORKBENCH.md`，ADR-018。
+- 批量裂变：`work-20261121-1..3`（seed 20261121，6 秒，每层 1/2/2）各 5 条 work 素材，成片 1080×1920 / 30fps / 6.016s / H.264 + AAC；profile 分别为 ember+hook-first+cards、ocean+punchy+showcase、lime+punchy+signup。
+- 镜头节奏重构：`planBeats` 每作品抖动 ±15%；`planShotSegments` 按 `shotLength.min/max` 定目标镜头数，合并中间节拍（保护 turn/close），拆分过长镜头并长短交替；EDL 允许空 beat、镜头跨节拍。
+- 重出 3 条：`work-20261121-1..3` 均从 5 镜头降为 4 镜头，镜头时长分别 1.30/3.03/1.07/0.60、1.07/2.80/1.33/0.80、1.27/2.50/1.40/0.83 秒。
+- 当前报告：`data/quality/report.json`、`out/quality/report.md`。
+- 新会话开工：读本文件、`docs/ASSETS.md`、`docs/QUALITY.md`、`docs/WORKBENCH.md`、`docs/FISSION.md`、`docs/AUDIO.md`、`docs/MOTION_PROMPTS.md`；跑 `npm run doctor`、`npm run check`、`npm run typecheck`、`node run.mjs check`、`node run.mjs quality --report-only`。
+- 继续开发：等用户的生成素材设计稿，细化 category / series / cue 与踩点策略；工作台第二阶段（批量任务表、发布打包、manifest）；品牌基线；生成每类第二组变体。
+- 注意：改动未提交 git；`data/`、`out/`、`public/` 是运行产物；`node run.mjs quality --force` 会重新抽帧并写回 catalog。
 
 ## 已完成
 
@@ -13,34 +39,235 @@
 - 上游 `common/{engine,components,vendor,assets,shots}` 已完整搬入。
 - `src/platform.ts` 与 `src/assets.ts` 已改为本地路径。
 - 一键入口、配置、doctor、check、规则与经验文档。
+- 新增 `docs/MOTION_PROMPTS.md`：9 类 90 条动效提示词库、经验总结、竖屏适配与配方字段。
+- P0 生成素材层：
+  - `data/catalog.json` 增加 `layer / sceneCapable / overlayCapable / transitionCapable / status / beatRoles / recipeId / source / quality / usage`。
+  - `src/generated/recipes.json` 注册 8 条 recipe（T01 / T03 / T06 / T08 / X01 / X02 / X08 / X10）。
+  - 新增 `text-atom` 与 `transition-atom` 两个 preset 组件；`modules/generate/recipes.mjs` 负责展开变体。
+  - 新增 `generate --review / --approve / --reject`；新素材默认 `draft`，混剪只消费 `approved`，`--allow-draft` 可临时预览。
+  - 混剪接入 `transitionAsset`；有转场时叠加延后到转场结束。
 - 首次验证：
   - `scan`：26 条实拍 / 29 个场景 / 缩略图与接触表正常。
   - `generate --variants 1`：6 类素材，6 个 MP4 + 5 个透明 WebM。
   - `mix --duration 12 --outputs 2 --seed 20261108`：两条 12 秒成片。
   - 跨条素材源区间重叠 0；14 个镜头签名全部唯一。
   - `npm run doctor`、`npm run check`、`npm run typecheck`、`node run.mjs check` 均通过。
+- P0 验证：
+  - 8 条 recipe 渲染成功（MP4 + 透明 WebM + 静帧）。
+  - `generate --review --status draft` → `--approve all` 通过。
+  - 12 秒混剪选入 `text-keyword` 叠加和 wipe / flash / glitch / light-leak 转场；成片抽帧确认覆盖与文字可读。
+  - `npm run check`、`npm run typecheck` 通过。
+- P1 音效与 BGM：
+  - `common/assets/sfx/index.json`：13 个 Kenney CC0 音效，本地转 48kHz WAV、-18 LUFS。
+  - `common/assets/music/index.json`：3 首 AERIS MUSIC CC0 + 2 首 Kevin MacLeod CC BY。
+  - EDL 音频扩展为 `{ music, sfx[] }`；`beatFrames` 来自选中曲目的 BPM。
+  - 音乐按叙事角色做能量曲线，SFX 活跃时 duck；SFX 按转场、文字叠加、UI mock 和回合点落点。
+  - 设计规则、来源与响度见 `docs/AUDIO.md`。
+- P1 生成引擎：
+  - `particle-atom`：P01 漂浮尘埃 / P04 流体光球 / P05 噪声流场。
+  - `camera-scene`：C01 推近 / C02 抖动 / C06 快速变焦 / C09 拉远，包装现有 scene。
+- P2 裂变：
+  - `fission` 从完整 recipe pool 按 workSeed 选 scene / overlay / transition，生成独立素材。
+  - catalog 增加 `scope / workId / workSeed / sharedAt`；work 素材自动 `approved`，仅对所属 work 可见。
+  - `mix --work` 只用 shared + 当前 work；planner 优先 work-local，并要求至少使用一条 work 素材。
+  - `--share` 提升 shared；`--list-works` 查看；`--clean-work` 默认 dry-run，`--force` 删除。
+  - 文档 `docs/FISSION.md`，`tools/check.mjs` 纳入必检。
+- P2 多轴 variation：
+  - `src/generated/variation.json` + `modules/generate/variation.mjs`。
+  - 调色板扩到 10；文本版式/背景/光位/字体/文案；粒子分布/背景/色组；镜头底图/icons/post/grade；转场角度/强度；时长档；节奏 profile；实拍主题。
+  - profile 写入 catalog `variation` 与 EDL `variation` / `workProfile`；fission 写 `data/works/<id>.config.json`。
+- P2 感知质量层：
+  - `modules/lib/vision.mjs`：ffmpeg `rawvideo` 抽帧；32×32 灰度 2D DCT pHash；alpha / 运动 / 亮度 / 对比度 / 平均色。
+  - `modules/quality/*`：`quality` 写回 catalog；同层帧对齐 Hamming + 颜色得到观感相似度；感知聚类；近似重复；覆盖矩阵；JSON/Markdown 报告。
+  - `generate` / `fission` 自动分析；`node run.mjs quality` 单独分析/报告；`--edl` 检查单条成片。
+  - 混剪质量闸门：默认跳过 `quality.ok = false`；`mix.perceptualDedupe` 默认开启，同片内跳过与已用素材观感过近的候选。
+  - `--allow-low-quality` / `--no-perceptual-dedupe` 可临时放开；`quality --strict` 可用于提交前检查。
+  - 文档 `docs/QUALITY.md`；`docs/DECISIONS.md` ADR-016；`docs/LESSONS.md` 追加 VP9 alpha、缩放 alpha 阈值、variation 扁平字段三条。
+- P2 镜头节奏：
+  - `planBeats` 增加 `beatJitter`，每个作品对节拍时长做 ±15% 抖动并归一化。
+  - 新增 `planShotSegments`：按 `mix.shotLength.min/max` 与 `mix.minShots/maxShots` 定镜头数；先合并中间节拍（保护 turn / close），再拆分超过 `maxLen × 1.8` 的镜头；拆分按 0.56/0.44 长短交替。
+  - `turnHint` 只保留在包含 turn 的第一段，避免拆出连续生成镜头。
+  - EDL `beats[]` 保持叙事窗口，`beats[].shots[]` 按镜头起点归属，允许空数组；`stills` 跳过空 beat。
+  - CLI：`--shot-length / --shot-min / --shot-max / --beat-jitter / --min-shots / --max-shots`。
+  - 文档 `docs/DECISIONS.md` ADR-017；`docs/LESSONS.md` 追加“叙事节拍不等于剪辑点”。
+- 本地 Web 工作台：
+  - `workbench/server.mjs`：Node 原生 `http`，只绑定 `127.0.0.1`；素材/成片/质量 API；单任务队列；日志落盘 + SSE；Range 媒体；取消子进程树。
+  - `workbench/public/*`：概览、素材、任务、成片、质量五页；任务表单覆盖 scan/generate/quality/mix/fission/check；素材 approve/reject/share/clean-work。
+  - `npm run workbench` / `npm run workbench:open`；`.claude/launch.json` 提供预览配置。
+  - 文档 `docs/WORKBENCH.md`；ADR-018；LESSONS 追加浏览器与 Node 流两处文件锁。
+- 生成素材解耦与完整性：
+  - `fission.generateAssets` 默认 `false`；`--with-assets` 才生成作品专属素材；`mix.requireWorkAsset` 默认 `false`。
+  - catalog 增加 `category / series / seriesIndex / loop`；presets 声明分类，recipe 按 engine 推导。
+  - 质量增加 `firstLastHamming`（精确首尾帧）、`endMotion`（精确末两帧）、`alphaEnd`；按类型标记 `loop-mismatch` / `end-unsettled` / `end-residue`。
+  - `icon-morph` 按完整循环重写；`particle-orbs` / `particle-dust` 改为整数周期；共享与 work-20261121-3 素材已重渲。
+  - 文档 `docs/ASSETS.md`；ADR-019；工作台分类/状态/质量标记中文展示，并增加类型筛选。
+- 素材取舍与系列分组：
+  - T08 `text-count` / P05 `particle-flow` 标记 `disabled: true`，移出 `generate.recipes` 与默认值；现有 9 条素材 `--reject` 退役。
+  - recipe 素材 `series = recipe.id`、preset 素材 `series = preset.id`，`seriesIndex` 记录变体序号；icon-morph 保持 `platform-icons` 系列。
+  - 工作台素材默认筛选 `approved`，新增“按系列分组”；卡片显示系列/变体，模态框显示系列与完整指标。
+- 霓虹平台图标故障系列：
+  - 新增 `icon-glitch-scatter` preset 与 `platform-icons-neon` recipe（I01），`cyber` 调色板。
+  - 7 个变体：基础 + 6 个单平台故障；统一布局、深度/模糊、透视网格、扫描线、RGB 色散、切片与冲击环。
+  - 故障爆发固定在第 30 帧（1.0s），便于 BGM/文案踩点；`series = platform-icons-neon`，`seriesIndex` 0..6。
+  - 7 条已 `approved`；工作台按系列分组显示为 7 个变体。
+- SIM 卡推广片：
+  - `projects/sim-card-promo/tts.mjs`：edge-tts（uvx）逐句生成 + 时间轴 + `voiceover.wav`。
+  - `projects/sim-card-promo/build.mjs`：脚本化 EDL、9 个自定义文字叠加、片尾 CTA 叠在 SIM 卡实拍、渲染与 BGM/TTS 混音。
+  - `platform-icons-neon-global` 系列 7 条（基础 + 6 平台），故障 0.4s，品牌色图标，用于逐词踩点。
+  - 成片 `out/sim-card-promo.mp4`：33.56s / 19 镜头 / 1080×1920 / 30fps / H.264 + AAC；TTS 29.756s，BGM 0.15，loudnorm -16.7 LUFS。
+  - 项目说明 `projects/sim-card-promo/README.md`。
+
+## 验收记录
+
+- 2026-11-08 · P0 验收通过
+  - 环境：`npm run doctor` 0 警告；素材库 26 条，生成目录 14 条。
+  - 元数据：14 条全部 `approved`（6 scene / 4 overlay / 4 transition）；`layer / sceneCapable / overlayCapable / transitionCapable / beatRoles / source / quality / usage` 无缺失。
+  - 审核闸门：合成目录测试，默认 10 个 seed 下 draft 叠加/转场出现 0 次；`--allow-draft` 下各出现 6 次。
+  - 混剪：12 秒 EDL 6 镜头（5 实拍 / 1 生成），13 个素材引用全部 approved；成片 1080×1920 / 30fps / 12.000s / H.264。
+  - 抽帧：wipe / flash / glitch / light-leak / 文字关键词高亮 / 网格叠加均正常。
+  - 校验：`npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+  - 验收脚本：`out/checks/accept-p0-gate.mjs`（临时脚本，不在流水线内）。
+- 2026-11-08 · P1 验证
+  - 7 条 particle / camera recipe 渲染并批准；catalog 21 条全部 `approved`。
+  - `mix-20261117-1`：hook 使用 `particle-orbs` 叠加（`blend: screen`），turn 使用 `camera-zoom`；camera 镜头 `motion = still`，避免二次运镜。
+  - BGM 自动选中 Afterglow Vast（84 BPM, CC0）；12 个 SFX 落在转场、文字高亮和回合点；`beatFrames = 21`。
+  - 踩坑：`public/audio` 文件符号链接导致 Remotion 音频渲染 `kill EPERM`；改用 `public/music` 目录路径后，30 帧 BGM + SFX 测试通过。
+  - 首版成片 -27.4 LUFS 偏低；调整 `music.volume = 0.6`、`sfx.volume = 1.4`、`duckTo = 0.22` 后重渲。
+  - 最终成片 `out/mix-20261117-1.mp4`：1080×1920 / 30fps / 12s / H.264 + AAC；-20.9 LUFS integrated，峰值 -5.97 dBFS。
+  - 校验：`npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+- 2026-11-08 · P1 验收通过
+  - 环境：`npm run doctor` 0 警告；`npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+  - 音频逻辑：`out/checks/accept-p1.mjs` 27/27；默认选曲、`--no-music`、`--no-sfx`、指定曲目、情绪、BPM、SFX 落点、素材存在全部通过。
+  - 素材：SFX 13 个（0 缺失，12 类）；BGM 5 首（3 CC0 + 2 CC BY，0 缺失）。
+  - 成片：1080×1920 / 30fps / 12.011s / H.264 + AAC；-20.9 LUFS integrated，峰值 -5.97 dBFS。
+  - catalog 21 条全部 `approved`；camera `motion = still`；particle `blend = screen`；EDL 12 个 SFX / `beatFrames = 21`。
+- 2026-11-08 · P2 裂变验证
+  - `work-t1`：3 条 work 素材（camera-shake / text-char-rise / transition-light-leak）；EDL `ownWorkAssets = 3`；成片 1080×1920 / 30fps / 6.016s / H.264 + AAC。
+  - `work-t2` dry-run：选中 camera-zoom / particle-flow / transition-flash，素材 ID 与 t1 不同。
+  - 普通 `mix`（seed 20261118）0 条 work 引用；`--list-works` 显示 t1 3 条素材与产出。
+  - 重跑 t1 dry-run：3 条 work 素材均命中缓存（“已存在”）。
+  - 合成目录测试：share / clean-work 9/9；clean 只删 work 文件，保留 shared 与其他 work。
+  - `npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+- 2026-11-08 · P2 多轴 variation 验证
+  - `accept-fission-variation.mjs` 42/42：6 个 seed 命中 5 种 palette、4 种节奏、3 种素材主题、2 种文本背景、3 种镜头底图、4 种转场角度。
+  - work-t3 profile `punchy` / `mixed`；EDL `ownWorkAssets = 3`；文本 left / none 背景 / top-right 光位；camera platform-orbit + scanline；transition angle 12。
+  - work-t3 与 t1 使用不同 recipe、palette、文本版式/背景、camera base/post、节奏。
+  - work-t3 成片：1080×1920 / 30fps / 6.016s / H.264 + AAC / 4.4 MB。
+  - `--list-works`：work-t1 / work-t3 各 3 条素材，EDL 与成片均存在。
+  - 普通 `mix` 0 条 work 引用；`npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+- 2026-11-08 · P2 感知质量层验证
+  - `node run.mjs quality`：27 条全部分析；21 感知簇；多样性 0.778；6 对近似重复；1 条 `faint-alpha` 警告（`particle-dust`，alpha 0.0026）。
+  - 按层：overlay 9/9 簇、scene 12/7 簇、transition 6/5 簇；scene 主要重复来自 camera 系 recipe 与它们的 base preset。
+  - 近似重复：`transition-light-leak` shared 与 work-t1 完全一致（score 1）；`network-universe` ↔ `camera-shake` 0.963；`platform-orbit` ↔ `camera-push` 0.927。
+  - 覆盖矩阵：palette × layer、recipe × palette、engine × layer、scope × layer 均生成；variation 轴在 work-t3 上读到 left / none / platform-orbit / scanline / punchy / mixed。
+  - `quality --edl mix-20261119-1` / `-2`：13 / 10 条生成素材，0 对同片近似重复。
+  - `mix --duration 30 --outputs 2 --seed 20261119 --dry-run`：13 镜头 × 2 通过；已有 9 条 EDL 全部通过 `node run.mjs check`。
+  - `generate` 自动分析验证：清除一条 `quality` 后重跑 `--only platform-orbit --variants 1`，日志显示“质量分析 1 条”。
+  - `npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+- 2026-11-08 · 批量裂变 3 个作品验证
+  - `node run.mjs fission --works 3 --seed 20261121 --duration 6 --per-layer 1,2,2`：3/3 完成，15 条 work 素材，0 失败。
+  - 成片 `out/work-20261121-1.mp4` / `-2.mp4` / `-3.mp4`：均 1080×1920 / 30fps / 6.016s / H.264 + AAC；5 镜头，实拍 3/4/4。
+  - 质量：42 条全部分析；33 感知簇；多样性 0.786；10 对近似重复；0 条 `ok=false`；2 条 `faint-alpha` 警告。
+  - 修正：alpha 覆盖率改用 96px 宽单独采样（`alphaSampleWidth`），避免 32px pHash 缩放误杀极淡粒子；`QUALITY_VERSION` 升到 2。
+  - `npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+- 2026-11-08 · 镜头节奏重构验证
+  - 6 秒 dry-run（默认 shotLength 1.4–2.6）：4 镜头，典型 0.9 / 3.4 / 1.0 / 0.7 秒；不同 seed 时长不同。
+  - 12 秒：5 镜头，1.70 / 3.37 / 3.87 / 2.03 / 1.03 秒；30 秒：12 镜头，1.27–4.10 秒，长短分布明显。
+  - punchy（1.2–2.0）与 slow-build（2.2–3.8）6 秒均为 4 镜头，但中段时长不同。
+  - 重出 `work-20261121-1..3`：均 4 镜头 / 3 实拍 / 1 生成；时长分别 1.30/3.03/1.07/0.60、1.07/2.80/1.33/0.80、1.27/2.50/1.40/0.83 秒。
+  - 三条成片仍为 1080×1920 / 30fps / 6.016s / H.264 + AAC；`npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+- 2026-11-09 · 本地 Web 工作台验证
+  - `npm run workbench`：`http://127.0.0.1:4317/` 概览、素材、任务、成片、质量五页加载正常。
+  - 素材页：57 条生成素材与 26 条实拍素材可筛选、看静帧/视频；资产弹窗可操作 approve/reject/share/clean-work。
+  - 任务页：通过 UI 运行 quality（57 条，0 失败）与 mix dry-run；SSE 日志、状态、队列正常；generate --force 31.5s 通过。
+  - 成片页：播放器 Range 正常；修复预览文件锁后，先播放素材再 `generate --force` 覆盖成功。
+  - 质量页：57 条报告、44 簇、13 对近似重复、4 条警告；目录与报告数量一致。
+  - 文件锁：浏览器预览 + Node `createReadStream` 会持有 `out/*.mp4`；已改为任务前释放视频、`res.close` 时销毁流；直接命令行覆盖渲染 171.5s 通过。
+  - `npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+- 2026-11-09 · 生成素材解耦与完整性验证
+  - `fission --works 1 --seed 20261150 --duration 6 --dry-run`：日志 `assets=shared`，不生成 work 素材；work config 正常写出。
+  - `mix --config ... --work work-20261150-1 --dry-run`：提示“没有专属素材，使用 shared 素材库”，规划通过。
+  - catalog 78 条全部分析：0 条质量失败，5 条警告（4 条 faint-alpha / 1 条 static）。
+  - `icon-morph` 两个变体首尾 Hamming 2 / 0；`particle-orbs` 两个变体 0；`particle-dust` 循环通过。
+  - 共享 particle-orbs / particle-dust 已重渲；work-20261121-3 的 5 条素材已用新组件重渲。
+  - 工作台素材页：类型、状态、质量标记中文展示；新增类型筛选；质量页 78 条 / 0 失败 / 5 警告。
+  - `npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+- 2026-11-09 · 素材取舍与系列分组验证
+  - 9 条 `text-count` / `particle-flow` 素材退役；`readRecipes` 跳过 `disabled`，`generate.recipes` 已移除两项。
+  - 质量报告：69 条活跃素材，44 感知簇，0 失败，3 条 `faint-alpha` 警告。
+  - 工作台默认“活跃（不含退役）”：69 条可见，`text-count` / `particle-flow` 不再出现；按系列分组 19 个系列。
+  - “按系列分组”：19 个系列，camera / transition / text / icon 等变体聚合；卡片显示系列与变体号。
+  - `npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+- 2026-11-09 · 霓虹平台图标故障系列验证
+  - `generate --recipe platform-icons-neon --force`：7 条变体全部渲染成功，MP4 + 透明 WebM + 静帧；已批准。
+  - 人工抽帧：基础款为霓虹散布；WhatsApp / LINE 故障帧可见 RGB 色散、横切、冲击环；图标为亮白霓虹，位置/深度稳定。
+  - 质量：7 条无失败；基础款 `static` 警告（预期），其余无标记。
+  - 工作台按系列分组：`platform-icons-neon` 显示 7 个变体；当前活跃素材 76 条 / 20 个系列。
+  - `npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
+- 2026-11-10 · SIM 卡推广片验证
+  - TTS：15 段，`zh-CN-YunxiNeural` +60%，voiceover 29.756s；片尾未配音。
+  - 画面：19 镜头，逐句对应；S1 使用 `platform-icons-neon-global` 品牌色图标逐平台故障；S3–S6 使用 SIM 卡实拍 + 自定义文字；片尾 CTA 叠在压暗 SIM 卡实拍上。
+  - 成片：33.56s / 1080×1920 / 30fps / H.264 + AAC，22 MB；混音 -16.7 LUFS，峰值 -1.4 dBFS。
+  - 抽帧：0.8s ChatGPT 叠加、9.0s 注册文案、14.8s 国内直邮、20.4s 完成验证、26.0s 片尾文字均正常。
+  - 渲染曾在中途被会话中断（735/827 帧）；续跑后完成。
+  - `npm run check`、`npm run typecheck`、`node run.mjs check` 通过。
 
 ## 待办
 
-- 生成每类第二组变体（默认配置要求 2 组）：`node run.mjs generate`。
-- 可选：启用背景音乐（`mix.music`），并确认 CC BY 署名。
-- 可选：跑一条 30 秒成片作为默认交付样例。
-- 可选：把上游镜头卡索引接入 preset 文档，标注每个 preset 参考的镜头卡。
-- 可选：提交初始 git 版本。
+- 工作台第二阶段：批量任务表、发布打包（`release/<batch>/` + manifest + 封面 + CSV）、上传能力单独评估。
+- 建立品牌基线：保留一套必须一致的字体/留白/色调规则，避免变化轴过多导致作品失去识别度。
+- 生成每类第二组变体：`node run.mjs generate`。
+- 可选：把上游镜头卡索引接入 preset 文档。
 
 ## 已知限制
 
-- 静止展示类实拍通常只有 1 个场景，混剪差异来自源区间与裁切，不依赖场景数。
+- 静止展示类实拍通常只有 1 个场景，混剪差异来自源区间与裁切。
 - 透明 WebM 的 `ffprobe` 显示 `yuv420p + ALPHA_MODE=1`，这是 VP9 alpha 的正常表示。
 - 素材不足时去重会降级，日志和 EDL 会标出 `relaxed`。
-- 默认静音；音乐需在配置里指定并确认许可。
 - `common/` 是上游快照，不在这里直接改；升级时整目录替换并重新验证。
+- 文字文案来自 `src/generated/variation.json` 的 10 条 copy 池；仍可能重复，后续接入按主题生成的文案源。
+- 转场原子只在镜头开头播放，尚未做镜头末尾或双段转场。
+- EDL 的 `beats[]` 是叙事窗口，`beats[].shots[]` 可能为空，镜头可以跨节拍；排查时以 `shot.at/dur` 为准。
+- 目标镜头长度是近似值；节拍边界、最短镜头约束、转场和 `maxLen × 1.8` 的拆分会拉动实际时长。
+- `quality` 已实现 pHash / alpha 覆盖率 / 运动能量 / 亮度对比度 / 平均色与 flags；pHash 对纯色极简画面区分度有限，仍需人工抽帧复查。
+- 质量分析每段素材多 1–2 次 ffmpeg 抽帧；27 条约数秒，work 批量裂变时会线性增长。
+- BGM 自动选曲是规则评分，不是人工试听；最终成片仍建议人工听一遍。
+- `CameraScene` 的 `basePreset` 列表需要手动维护。
+- 粒子使用 DOM / SVG；数量大时渲染成本上升。
+- 默认混音约 -21 LUFS；需要更响可在配置里提高 `music.volume` / `sfx.volume`。
+- CC BY 曲目（Crypto / Floating Cities）发布时必须保留署名。
+- Recipe 池只是“动词”；差异主要来自 variation 轴的版式 / 背景 / 光色 / 文案 / 镜头 / 节奏 / 素材主题，以及 recipe 选择。继续加 recipe 仍有价值，但不是唯一杠杆。
+- 每个 work 素材需要 MP4 + 可选 WebM + 2 静帧；fission 串行渲染，耗时不短。
+- `--clean-work` 只删素材，不删作品成片和 EDL；删除前会提示仍引用这些素材的 EDL。
+- Work 素材跨作品复用只能通过 `--share` 手动提升；提升后失去一次性隔离。
+- 变化轴已经很多；感知去重默认开启（同片内 + 质量闸门），但跨成片仍可能撞画面，需要看 `quality` 报告的近似重复对。
+- 变化轴过多会稀释品牌识别度，需要保留字体、留白、主色等基线。
+- 生成素材分类目前是初步体系（text/icon/transition/particle/camera/ui/graphic）；`series` 已用于 `icon-morph`、`platform-icons-neon`、`platform-icons-neon-global`；`cueRole/cueOffset` 等踩点字段尚未接入 planner，目前靠素材起点和代码里的 0.4s/1.0s 故障爆发手动对齐。
+- 转场“完整”没有统一自动判定：`end-residue` 只在显式 `complete = clear` 时检查，否则只记录 `alphaEnd` 指标。
+- 83 条活跃素材有 130 对近似重复，主要来自同 recipe 的变体、两组霓虹系列共用布局和 camera 系共用底图；需要人工判断是否保留。
+- SIM 卡推广片 33.56s；按用户要求放慢到 +60%，时长比最初 20s 目标长；如果还要更紧凑，可后期 atempo 或删减文案。
+- TTS 是逐句时间轴，没有词级字幕；具体镜头与句子的对应写在 `projects/sim-card-promo/build.mjs`，改文案后需要同步改 shots。
+- 工作台只监听 `127.0.0.1`，无登录/权限；一次只跑一个任务；通过 API 直接提交任务不会自动释放视频预览句柄。
+- 工作台还没有发布/上传；新增 CLI stage 时需要同步更新前端表单 schema。
+- 实拍标签较稀疏：多数素材只有“展示”，素材主题过滤可能回退全池。
 
+## 2026-11-13 · 架构边界与运行目录收敛
 
-## 已知限制
+- `config/pipeline.json` 增加 `runtime`（public/cache/temp/release）和 `tools`，`modules/lib/config.mjs` 不再复制整份业务默认配置。
+- 新增 `config/pipeline.schema.json`、`tools/check-config.mjs`：校验配置范围、beat ratio、preset/recipe、组件 registry、variation camera bases 和项目 manifest。
+- `fission` 改为使用已解析的 effective config，不再重新读取原始 pipeline 配置，避免丢失 CLI 覆盖。
+- 新增 `node run.mjs public`：默认报告；`--apply` 安全隔离空实体 public 目录并创建 junction；本次已备份并恢复 assets/generated/thumbs/music 四个空目录，外部 footage 根缺失所以未创建链接。
+- 新增 `node run.mjs cache list|clean [--force]`，管理 `.cache/video-pipeline`、`out/checks`、`out/downloads`；默认 list/dry-run，不触碰 data、approved 资产、实拍或成片。
+- 新增 `config/components.json`、`config/parameters.json`、`projects/sim-card-promo/project.json`；工作台新增 `/api/config`、`/api/parameters`、`/api/components`，任务默认值来自当前配置。
+- `npm run typecheck`、`node tools/check-config.mjs`、`node run.mjs check`、`node run.mjs quality --report-only` 通过；`npm run check` 现仅将缺失 footage 根对应的旧实体目录报告为 warning，catalog 历史缺失媒体仍为 warning。
+- 工作台浏览器验证：配置/参数 API 200、无控制台错误，任务页显示当前 duration/outputs/seed/shotLength 并生成正确命令预览。
 
-- 静止展示类实拍通常只有 1 个场景，混剪差异来自源区间与裁切，不依赖场景数。
-- 透明 WebM 的 `ffprobe` 显示 `yuv420p + ALPHA_MODE=1`，这是 VP9 alpha 的正常表示。
-- 素材不足时去重会降级，日志和 EDL 会标出 `relaxed`。
-- 默认静音；音乐需在配置里指定并确认许可。
-- `common/` 是上游快照，不在这里直接改；升级时整目录替换并重新验证。
+## 2026-11-13 · 全新运行数据重建
+
+- 实拍：配置的素材根不存在，`scan` 现在按 `intentionalEmpty` 生成空库；`data/library.json` 0 条，`footage.manifest.json` roots/assets 为空，并记录 `missingRoots`。
+- 生成素材：旧 catalog 的 92 条全部指向旧机器绝对路径；`node run.mjs reindex --apply` 按当前 `out/assets` 92 个 MP4 / 74 个 WebM 重建路径，保留 70 approved / 13 draft / 9 retired 与质量数据；0 条丢弃。
+- 旧 EDL：12 条全部引用已不存在的实拍，已 prune 其 EDL、成片、分段、分镜静帧；签名库重建为 0 条。
+- 清理：`out/checks` 41MB、`public/footage/vedio` 空实体目录、旧 `out/sim-card-promo*`、`out/segments`、`.cache`、旧 `data/works` 配置、`data/workbench` 任务日志已移除。
+- 保留：`out/assets`（92 MP4/74 WebM）、`out/stills/assets`（184 张，全部属于有效 catalog）、`out/tts`（项目 TTS 输入）、`data/edl/signatures.json`（空）、`data/migrations`（重建审计）。
+- 验证：`npm run check`、`npm run typecheck`、`npm run doctor`（1 warning：素材根缺失）、`node run.mjs check`、`node run.mjs quality --report-only` 通过；工作台 `/api/status`、`/api/library`、`/api/catalog`、`/api/outputs` 均 200，实拍 0 / catalog 92 / 成片 0。
+- 新命令：`node run.mjs reindex [--apply]`、`node run.mjs runtime list|clean [--apply] [--force]`、`node run.mjs runtime prune-edl [--apply]`。

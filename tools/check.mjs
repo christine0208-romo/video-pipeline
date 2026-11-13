@@ -21,8 +21,11 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadConfig } from "../modules/lib/config.mjs";
+import { rootSlug } from "../modules/lib/public.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const cfg = loadConfig([]);
 const problems = [];
 const warnings = [];
 
@@ -41,26 +44,59 @@ const required = [
   "STATUS.md",
   "CREDITS.md",
   "config/pipeline.json",
+  "config/pipeline.schema.json",
+  "config/components.json",
+  "config/parameters.json",
   "run.mjs",
   "src/index.ts",
   "src/platform.ts",
+  "src/generated/recipes.json",
+  "src/generated/variation.json",
   "modules/scan/index.mjs",
   "modules/generate/index.mjs",
+  "modules/quality/index.mjs",
+  "modules/quality/analyze.mjs",
+  "modules/quality/similarity.mjs",
   "modules/mix/index.mjs",
+  "workbench/server.mjs",
+  "workbench/public/index.html",
+  "workbench/public/app.js",
+  "workbench/public/styles.css",
   "tools/doctor.mjs",
+  "tools/check-config.mjs",
+  "tools/cache.mjs",
+  "tools/reindex.mjs",
+  "tools/reconcile-runtime.mjs",
+  "tools/migrate-public.mjs",
   "docs/RULES.md",
   "docs/LESSONS.md",
   "docs/WORKFLOW.md",
   "docs/MODULES.md",
+  "docs/AUDIO.md",
+  "docs/FISSION.md",
+  "docs/QUALITY.md",
+  "docs/ASSETS.md",
+  "docs/WORKBENCH.md",
   "docs/DEPENDENCIES.md",
   "docs/DECISIONS.md",
   "docs/TROUBLESHOOTING.md",
   "docs/ONBOARDING.md",
   "docs/dependencies.json",
   "common/assets/REGISTRY.json",
+  "common/assets/sfx/index.json",
+  "common/assets/music/index.json",
 ];
 for (const file of required) {
   if (!existsSync(path.join(ROOT, file))) problems.push(`缺少必需文件：${file}`);
+}
+
+const configCheck = spawnSync(
+  process.execPath,
+  [path.join(ROOT, "tools", "check-config.mjs")],
+  { cwd: ROOT, encoding: "utf8" },
+);
+if (configCheck.status !== 0) {
+  problems.push(`配置检查失败：\n${(configCheck.stdout ?? "") + (configCheck.stderr ?? "")}`);
 }
 
 // 2. 确定性红线（只扫我们自己的 src）
@@ -150,7 +186,12 @@ if (existsSync(footageLink)) {
     for (const entry of readdirSync(footageLink, { withFileTypes: true })) {
       const child = path.join(footageLink, entry.name);
       if (!entry.isSymbolicLink()) {
-        problems.push(`public/footage/${entry.name} 不是链接（疑似拷贝）`);
+        const index = cfg.footage.roots.findIndex((root, rootIndex) => rootSlug(root, rootIndex) === entry.name);
+        if (index >= 0 && !existsSync(cfg.footage.roots[index])) {
+          warnings.push(`public/footage/${entry.name} 等待缺失素材根目录恢复`);
+        } else {
+          problems.push(`public/footage/${entry.name} 不是链接（疑似拷贝）`);
+        }
       }
     }
   }

@@ -48,12 +48,15 @@ export function scanAll(cfg) {
     processed: 0,
     scenes: 0,
     errors: 0,
+    intentionalEmpty: false,
   };
+  const missingRoots = [];
   let processed = 0;
 
   for (const link of cfg.footageLinks) {
     if (link.missing) {
-      console.warn(`[scan] 根目录不存在，已跳过：${link.root}`);
+      missingRoots.push(link.root);
+      console.warn(`[scan] 根目录不存在，按空库处理：${link.root}`);
       continue;
     }
     stats.roots += 1;
@@ -189,10 +192,17 @@ export function scanAll(cfg) {
 
   for (const [key, prev] of Object.entries(oldAssets)) {
     if (!next.assets[key]) {
-      next.assets[key] = { ...prev, status: "missing" };
       stats.missing += 1;
-      console.warn(`[scan] - 缺失 ${key}`);
+      console.warn(`[scan] - 未观测 ${key}`);
     }
+  }
+
+  if (next.roots.length === 0) {
+    stats.intentionalEmpty = true;
+    next.missingRoots = missingRoots;
+    console.log("[scan] 没有可用素材根目录，生成空素材库（intentionalEmpty）");
+  } else if (missingRoots.length) {
+    next.missingRoots = missingRoots;
   }
 
   writeJson(manifestPath, next);

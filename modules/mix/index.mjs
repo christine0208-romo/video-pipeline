@@ -2,10 +2,11 @@
 import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../lib/config.mjs";
-import { ensureDir, readJson, writeJson } from "../lib/fsx.mjs";
+import { ensureDir, normalizeWorkId, readJson, writeJson } from "../lib/fsx.mjs";
 import { ensurePublicLinks } from "../lib/public.mjs";
 import { renderStill, renderVideo } from "../lib/render.mjs";
-import { readCatalog } from "../generate/catalog.mjs";
+import { seedFrom } from "../lib/rng.mjs";
+import { isVisibleToWork, readCatalog } from "../generate/catalog.mjs";
 import { planOutput, loadRegistry } from "./planner.mjs";
 import { addToRegistry, removeOutputFromRegistry, validateEdl } from "./uniqueness.mjs";
 
@@ -139,22 +140,88 @@ try {
   if (!pool.length) {
     throw new Error("没有可用的实拍视频：素材库里没有时长 >= 1.5s 的视频");
   }
-  const catalog = readCatalog(cfg).filter((entry) => existsSync(entry.fileMp4));
+  const tagSet = (asset) =>
+    new Set(
+      [
+        ...(asset.tags?.platforms ?? []),
+        ...(asset.tags?.subjects ?? []),
+        ...(asset.tags?.actions ?? []),
+        ...(asset.tags?.mood ?? []),
+        ...(asset.tags?.keywords ?? []),
+        asset.tags?.shotScale,
+        asset.tags?.platform,
+      ].filter(Boolean),
+    );
+  const themeTags = Array.isArray(cfg.mix.footageTags)
+    ? cfg.mix.footageTags
+    : [];
+  const themed = themeTags.length
+    ? pool.filter((asset) => {
+        const tags = tagSet(asset);
+        return themeTags.every((tag) => tags.has(tag));
+      })
+    : pool;
+  const activePool = themed.length >= 5 ? themed : pool;
+  if (themeTags.length) {
+    console.log(
+      `[mix] footage theme ${themeTags.join("+")} -> ${activePool.length}/${pool.length}`,
+    );
+  }
+  const workId = cfg.mix.work ? normalizeWorkId(cfg.mix.work) : null;
+  if (workId) cfg.mix.work = workId;
+  const catalogAll = readCatalog(cfg).filter((entry) =>
+    existsSync(entry.fileMp4),
+  );
+  const catalog = workId
+    ? catalogAll.filter((entry) => isVisibleToWork(entry, workId))
+    : catalogAll.filter((entry) => (entry.scope ?? "shared") === "shared");
   if (!catalog.length) {
-    throw new Error("生成素材为空：先运行 node run.mjs generate");
+    throw new Error("生成素材为空：先运行 node run.mjs generate 或 fission");
+  }
+  if (workId) {
+    const own = catalog.filter(
+      (entry) => entry.scope === "work" && entry.workId === workId,
+    ).length;
+    if (!own) {
+      console.log(
+        `[mix] ${workId} 没有专属素材，使用 shared 素材库${cfg.mix.requireWorkAsset ? "（但 requireWorkAsset=true）" : ""}`,
+      );
+    }
+  }
+  const lowQuality = catalog.filter((entry) => entry.quality?.ok === false);
+  if (lowQuality.length) {
+    console.warn(
+      `[mix] ${
+        cfg.mix.allowLowQuality ? "允许使用" : "跳过"
+      } ${lowQuality.length} 条质量不达标素材：${lowQuality
+        .slice(0, 6)
+        .map((entry) => `${entry.id}(${(entry.quality.flags ?? []).join(",")})`)
+        .join(", ")}${lowQuality.length > 6 ? " ..." : ""}`,
+    );
+  }
+  if (workId && !cfg.flags.seed) {
+    const workEntry = catalogAll.find(
+      (entry) =>
+        entry.scope === "work" &&
+        entry.workId === workId &&
+        entry.workSeed != null,
+    );
+    cfg.mix.seed = workEntry ? Number(workEntry.workSeed) : seedFrom(workId);
   }
 
   const edlDir = path.join(cfg.paths.data, "edl");
   ensureDir(edlDir);
   const planned = [];
   const baseSeed = Number(cfg.mix.seed);
+  const outputCount = workId ? 1 : Number(cfg.mix.outputs);
 
-  for (let index = 0; index < Number(cfg.mix.outputs); index += 1) {
-    removeOutputFromRegistry(registry, `mix-${baseSeed}-${index + 1}`);
+  for (let index = 0; index < outputCount; index += 1) {
+    const outputId = workId ?? `mix-${baseSeed}-${index + 1}`;
+    removeOutputFromRegistry(registry, outputId);
   }
 
-  for (let index = 0; index < Number(cfg.mix.outputs); index += 1) {
-    const outputId = `mix-${baseSeed}-${index + 1}`;
+  for (let index = 0; index < outputCount; index += 1) {
+    const outputId = workId ?? `mix-${baseSeed}-${index + 1}`;
     let winner = null;
     let lastValidation = null;
 
@@ -169,11 +236,22 @@ try {
       };
       const candidate = planOutput(patched, {
         index,
-        pool,
+        pool: activePool,
         catalog,
         registry,
       });
       const validation = validateEdl(candidate.edl, registry, cfg);
+      if (
+        validation.ok &&
+        workId &&
+        cfg.mix.requireWorkAsset &&
+        (candidate.edl.stats?.ownWorkAssets ?? 0) === 0
+      ) {
+        validation.ok = false;
+        validation.errors.push(
+          `work ${workId} 未使用任何 work 素材（requireWorkAsset=true；可加 --with-assets 或关闭该要求）`,
+        );
+      }
       if (validation.ok) {
         winner = { ...candidate, validation };
         break;

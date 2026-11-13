@@ -1,0 +1,77 @@
+# WORKBENCH · 本地可视化工作台
+
+一个只绑定 `127.0.0.1` 的本地 Web 页面，用来浏览素材、看成片、运行 `run.mjs` 阶段、查看质量报告。不重写流水线，只包一层任务队列和文件浏览；没有新增 npm 依赖。
+
+## 1. 启动
+
+```bash
+npm run workbench
+# 或自动打开浏览器
+npm run workbench:open
+```
+
+默认地址：`http://127.0.0.1:4317/`。端口可改：
+
+```bash
+node workbench/server.mjs --port 4400 --open
+```
+
+## 2. 页面
+
+| 页面 | 内容 |
+|---|---|
+| 概览 | 实拍/生成素材数、作品数、成片数、当前任务、最近成片、质量摘要 |
+| 素材 | 生成素材与实拍素材；按层 / 类型 / scope / 状态筛选；默认隐藏退役素材；可按系列分组查看变体；缩略图、静帧、视频预览；批准 / 退役 / 提升 shared / 清理 work（dry-run）。类型、状态、质量标记用中文展示。 |
+| 任务 | 选择 scan / generate / quality / mix / fission / check，填参数、预览命令、运行、看实时日志、取消 |
+| 成片 | 列表、内嵌播放器、时长/镜头数/大小、打开所在文件夹、复制路径 |
+| 质量 | 复用 `data/quality/report.json` 的聚类、近似重复、覆盖矩阵与质量标记 |
+
+## 3. 任务队列
+
+- 一次只跑一个任务；Remotion 不能并发。
+- 后续任务进入队列，当前任务结束后自动开始。
+- 日志写入 `data/workbench/logs/<jobId>.log`，通过 SSE 实时推到页面；刷新页面后仍可回看。
+- 「取消」会终止整个子进程树（Windows 用 `taskkill /T /F`）。
+- 服务重启时，正在运行/排队的任务标记为 `interrupted`，不会自动续跑；已渲染素材仍按文件缓存，重跑会跳过已有文件。
+
+任务只是拼参数调用：
+
+```text
+node run.mjs <stage> <args...>
+```
+
+因此 CLI 的缓存、质量闸门、确定性规则全部保持不变。
+
+## 4. API
+
+| 方法 | 路径 | 用途 |
+|---|---|---|
+| GET | `/api/status` | 计数、当前任务、队列、最近成片、质量摘要 |
+| GET | `/api/catalog` | 生成素材目录（含 quality、stills、mp4/webm URL） |
+| GET | `/api/library` | 实拍素材库 |
+| GET | `/api/outputs` | `out/*.mp4` 与对应 EDL 摘要 |
+| GET | `/api/quality` | 质量报告 + `catalogCount`（用于提示报告是否过期） |
+| GET | `/api/jobs` | 任务列表、当前任务、队列 |
+| POST | `/api/jobs` | `{ stage, args[] }` 创建任务 |
+| GET | `/api/jobs/:id` | 单个任务状态 |
+| GET | `/api/jobs/:id/stream` | SSE：历史日志 + 实时日志 + 状态 |
+| POST | `/api/jobs/:id/cancel` | 取消任务 |
+| POST | `/api/action` | `{ action, id }`：approve / reject / share / clean-work |
+| POST | `/api/reveal` | 在文件管理器中显示 `out/` 或 `data/` 下的路径 |
+| GET | `/media/out/*`、`/media/data/*` | 静态媒体；支持 Range，供视频拖动播放 |
+
+## 5. 安全边界
+
+- 只监听 `127.0.0.1`，不对外网开放。
+- 命令用 `spawn(process.execPath, [run.mjs, stage, ...args])`，不经过 shell。
+- `stage` 有白名单；参数必须是字符串数组。
+- `/media/*` 与 `/api/reveal` 只允许 `out/`、`data/` 下的路径，拒绝 `..` 穿越。
+- 实拍原始视频不通过工作台播放，只展示缩略图与标签；避免把素材根目录暴露成静态服务。
+
+## 6. 边界与后续
+
+- Windows 上浏览器预览会占用 `out/*.mp4` 的文件句柄。工作台会在提交任务、关闭弹窗、离开成片页时释放所有 `<video>`，并且媒体流在客户端断开时销毁；通过 API 直接提交任务不会自动释放，需调用方自己保证。
+- `clean-work` 在工作台里只做 dry-run；真正删除仍需命令行 `--force`。
+- 质量页只读报告；过期时提示「报告待更新」，不会自动重算。
+- 还没有发布/上传功能。下一步可加：批次任务表、发布打包（`release/<batch>/` + manifest + 封面 + CSV）、平台上传（需要单独评估授权与风险）。
+- 工作台不替代 `npm run check` / `npm run typecheck`；提交前仍要跑。

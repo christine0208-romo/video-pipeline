@@ -5,8 +5,13 @@ import { PlatformOrbit } from "./presets/platform-orbit";
 import { SocialConstellation } from "./presets/social-constellation";
 import { NetworkUniverse } from "./presets/network-universe";
 import { IconMorph } from "./presets/icon-morph";
+import { IconGlitchScatter } from "./presets/icon-glitch-scatter";
 import { UiMock } from "./presets/ui-mock";
 import { KineticGrid } from "./presets/kinetic-grid";
+import { TextAtom } from "./atoms/text-atom";
+import { TransitionAtom } from "./atoms/transition-atom";
+import { ParticleAtom } from "./atoms/particle-atom";
+import { CameraScene } from "./atoms/camera-scene";
 
 export type PresetComponent = React.FC<PresetProps>;
 
@@ -17,8 +22,13 @@ const COMPONENTS: Record<string, PresetComponent> = {
   "social-constellation": SocialConstellation,
   "network-universe": NetworkUniverse,
   "icon-morph": IconMorph,
+  "icon-glitch-scatter": IconGlitchScatter,
   "ui-mock": UiMock,
   "kinetic-grid": KineticGrid,
+  "text-atom": TextAtom,
+  "transition-atom": TransitionAtom,
+  "particle-atom": ParticleAtom,
+  "camera-scene": CameraScene,
 };
 
 export const PRESETS: Record<string, { meta: PresetMeta; Component: PresetComponent }> =

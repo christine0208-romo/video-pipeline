@@ -10,68 +10,7 @@ export const PIPELINE_ROOT = path.resolve(
 export const REPO_ROOT = PIPELINE_ROOT;
 export const WORKSPACE_ROOT = PIPELINE_ROOT;
 
-const DEFAULTS = {
-  spec: { width: 1080, height: 1920, fps: 30 },
-  dataDir: "data",
-  outDir: "out",
-  tools: { ffmpeg: "ffmpeg", ffprobe: "ffprobe" },
-  footage: {
-    roots: ["D:/Files/AI_Vedio/1_素材库/vedio"],
-    extensions: [
-      ".mp4",
-      ".mov",
-      ".m4v",
-      ".mkv",
-      ".avi",
-      ".webm",
-      ".jpg",
-      ".jpeg",
-      ".png",
-      ".webp",
-      ".avif",
-    ],
-    exclude: [
-      "node_modules",
-      ".git",
-      "$RECYCLE.BIN",
-      "System Volume Information",
-      ".cache",
-    ],
-    sidecars: ["tags.json"],
-    cropDetect: true,
-    sceneSplit: { enabled: true, threshold: 0.32, minShot: 1.2, pad: 0.15 },
-    thumbs: { enabled: true, count: 3, width: 480 },
-  },
-  generate: {
-    presets: [
-      "platform-orbit",
-      "social-constellation",
-      "network-universe",
-      "icon-morph",
-      "ui-mock",
-      "kinetic-grid",
-    ],
-    variantsPerPreset: 2,
-    duration: 3,
-    formats: ["mp4", "webm-alpha"],
-  },
-  mix: {
-    duration: 30,
-    outputs: 1,
-    seed: 20261108,
-    maxPerAsset: 3,
-    minGap: 2,
-    generatedRatio: 0.3,
-    music: null,
-    beats: [
-      { role: "hook", ratio: 0.14 },
-      { role: "build", ratio: 0.26 },
-      { role: "proof", ratio: 0.3 },
-      { role: "turn", ratio: 0.18 },
-      { role: "close", ratio: 0.12 },
-    ],
-  },
-};
+const DEFAULTS = {};
 
 export function parseArgs(argv) {
   const flags = {};
@@ -108,6 +47,12 @@ export function deepMerge(base, patch) {
 
 const isTrue = (value) => value === true || value === "true" || value === "1";
 
+const splitList = (value) =>
+  String(value)
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+
 function resolveConfigPath(raw) {
   const value = typeof raw === "string" ? raw : "config/pipeline.json";
   if (path.isAbsolute(value)) return value;
@@ -126,47 +71,141 @@ export function loadConfig(argv = process.argv.slice(2)) {
   const fileConfig = existsSync(configPath)
     ? JSON.parse(readFileSync(configPath, "utf8"))
     : {};
-  const cfg = deepMerge(DEFAULTS, fileConfig);
+  const localPath = path.join(path.dirname(configPath), "local.json");
+  const localConfig = existsSync(localPath)
+    ? JSON.parse(readFileSync(localPath, "utf8"))
+    : {};
+  const cfg = deepMerge(deepMerge(DEFAULTS, fileConfig), localConfig);
 
   if (flags.roots) {
-    cfg.footage.roots = String(flags.roots)
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    cfg.footage.roots = splitList(flags.roots);
   }
   if (flags.duration) cfg.mix.duration = Number(flags.duration);
+  if (flags["shot-length"]) {
+    const value = Math.max(0.6, Number(flags["shot-length"]));
+    cfg.mix.shotLength = { min: value * 0.8, max: value * 1.25 };
+  }
+  if (flags["shot-min"]) {
+    cfg.mix.shotLength = {
+      ...cfg.mix.shotLength,
+      min: Math.max(0.6, Number(flags["shot-min"])),
+    };
+  }
+  if (flags["shot-max"]) {
+    cfg.mix.shotLength = {
+      ...cfg.mix.shotLength,
+      max: Math.max(0.6, Number(flags["shot-max"])),
+    };
+  }
+  if (flags["beat-jitter"]) {
+    cfg.mix.beatJitter = Math.max(0, Number(flags["beat-jitter"]));
+  }
+  if (flags["min-shots"]) cfg.mix.minShots = Number(flags["min-shots"]);
+  if (flags["max-shots"]) cfg.mix.maxShots = Number(flags["max-shots"]);
   if (flags["generate-duration"]) {
     cfg.generate.duration = Number(flags["generate-duration"]);
   }
   if (flags.outputs) cfg.mix.outputs = Number(flags.outputs);
   if (flags.seed) cfg.mix.seed = Number(flags.seed);
   if (flags.presets) {
-    cfg.generate.presets = String(flags.presets)
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    cfg.generate.presets = splitList(flags.presets);
   }
-  if (flags.variants) cfg.generate.variantsPerPreset = Number(flags.variants);
+  if (flags.variants) {
+    cfg.generate.variantsPerPreset = Number(flags.variants);
+    cfg.generate.variantsPerRecipe = Number(flags.variants);
+  }
+  if (flags["variants-recipe"]) {
+    cfg.generate.variantsPerRecipe = Number(flags["variants-recipe"]);
+  }
   if (flags.limit) cfg.limit = Number(flags.limit);
   if (flags.only) {
-    cfg.generate.presets = String(flags.only)
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean);
+    cfg.generate.presets = splitList(flags.only);
+    cfg.generate.recipes = [];
   }
+  if (flags.recipe) {
+    cfg.generate.recipes = splitList(flags.recipe);
+    cfg.generate.presets = [];
+  }
+  if (isTrue(flags["no-recipes"])) cfg.generate.recipes = [];
   if (isTrue(flags["no-scenes"])) cfg.footage.sceneSplit.enabled = false;
   if (isTrue(flags["no-thumbs"])) cfg.footage.thumbs.enabled = false;
   if (isTrue(flags["no-crop"])) cfg.footage.cropDetect = false;
+  if (isTrue(flags["allow-draft"])) cfg.mix.allowDraft = true;
+  if (isTrue(flags["allow-low-quality"])) cfg.mix.allowLowQuality = true;
+  if (isTrue(flags["no-perceptual-dedupe"])) {
+    cfg.mix.perceptualDedupe = false;
+  }
+  if (isTrue(flags["require-work-asset"])) cfg.mix.requireWorkAsset = true;
+  if (isTrue(flags["with-assets"])) cfg.fission.generateAssets = true;
+  if (isTrue(flags["no-assets"])) cfg.fission.generateAssets = false;
+  if (isTrue(flags["no-music"])) cfg.mix.music = null;
+  if (flags.music) {
+    const value = String(flags.music);
+    const base =
+      typeof cfg.mix.music === "object" && cfg.mix.music ? cfg.mix.music : {};
+    cfg.mix.music =
+      value === "auto"
+        ? { ...base, mode: "auto" }
+        : { ...base, mode: "file", file: value };
+  }
+  if (flags["music-mood"] || flags["music-energy"] || flags["music-volume"]) {
+    const base =
+      typeof cfg.mix.music === "object" && cfg.mix.music
+        ? cfg.mix.music
+        : { mode: "auto" };
+    cfg.mix.music = {
+      ...base,
+      ...(flags["music-mood"] ? { mood: String(flags["music-mood"]) } : {}),
+      ...(flags["music-energy"]
+        ? { energy: String(flags["music-energy"]) }
+        : {}),
+      ...(flags["music-volume"]
+        ? { volume: Number(flags["music-volume"]) }
+        : {}),
+    };
+  }
+  if (isTrue(flags["no-sfx"])) cfg.mix.sfx.enabled = false;
+  if (isTrue(flags.sfx)) cfg.mix.sfx.enabled = true;
+  if (flags.bpm) cfg.mix.bpm = Number(flags.bpm);
+  if (flags.work) cfg.mix.work = String(flags.work);
+  if (flags.works) cfg.fission.works = Number(flags.works);
+  if (flags["work-seed"]) {
+    cfg.fission.workSeed = Number(flags["work-seed"]);
+  }
+  if (flags["per-layer"]) {
+    const [scene, overlay, transition] = splitList(flags["per-layer"]).map(
+      Number,
+    );
+    cfg.fission.assetsPerLayer = {
+      scene: scene ?? cfg.fission.assetsPerLayer.scene,
+      overlay: overlay ?? cfg.fission.assetsPerLayer.overlay,
+      transition: transition ?? cfg.fission.assetsPerLayer.transition,
+    };
+  }
+  if (flags.scene) cfg.fission.assetsPerLayer.scene = Number(flags.scene);
+  if (flags.overlay) {
+    cfg.fission.assetsPerLayer.overlay = Number(flags.overlay);
+  }
+  if (flags.transition) {
+    cfg.fission.assetsPerLayer.transition = Number(flags.transition);
+  }
 
   cfg.configPath = configPath;
+  cfg.localConfigPath = existsSync(localPath) ? localPath : null;
   cfg.flags = flags;
   cfg.positionals = positionals;
+  const dataRoot = cfg.dataDir ?? "data";
+  const outputRoot = cfg.outDir ?? "out";
+  const runtime = cfg.runtime ?? {};
   cfg.paths = {
     pipeline: PIPELINE_ROOT,
     repo: REPO_ROOT,
-    data: path.resolve(PIPELINE_ROOT, cfg.dataDir),
-    out: path.resolve(PIPELINE_ROOT, cfg.outDir),
-    public: path.resolve(PIPELINE_ROOT, "public"),
+    data: path.resolve(PIPELINE_ROOT, dataRoot),
+    out: path.resolve(PIPELINE_ROOT, outputRoot),
+    public: path.resolve(PIPELINE_ROOT, runtime.publicDir ?? "public"),
+    cache: path.resolve(PIPELINE_ROOT, runtime.cacheDir ?? ".cache/video-pipeline"),
+    temp: path.resolve(PIPELINE_ROOT, runtime.tempDir ?? ".cache/video-pipeline/tmp"),
+    release: path.resolve(PIPELINE_ROOT, runtime.releaseDir ?? "release"),
   };
   cfg.footage.roots = cfg.footage.roots.map((root) =>
     path.isAbsolute(root) ? path.normalize(root) : path.resolve(REPO_ROOT, root),

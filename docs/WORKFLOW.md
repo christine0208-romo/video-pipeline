@@ -52,6 +52,76 @@ node run.mjs scan
 
 命名：preset id 用 kebab-case，不用中文；画面上不出现内部标签。
 
+## 4.1 新增或修改 recipe
+
+1. 在 `src/generated/recipes.json` 增加条目：`id / code / name / engine / preset / layer / beatRoles / durationFrames / params / axes`。
+2. `preset` 只能是已注册的组件（当前 `text-atom`、`transition-atom`、`particle-atom`、`camera-scene`）。
+3. `axes` 里的 `palette / seed / text / keyword / countTo` 会按变体序号取值。
+4. 在 `config/pipeline.json` 的 `generate.recipes` 加入 id。
+5. `node run.mjs generate --recipe <id> --variants 1 --force`。
+6. 看 `out/stills/assets/`，再 `node run.mjs generate --review --status draft`。
+7. 通过后 `node run.mjs generate --approve <id>` 或 `--approve all`。
+8. 更新 `docs/MODULES.md` 与 `docs/MOTION_PROMPTS.md`。
+
+## 4.2 审核与退役
+
+```bash
+node run.mjs generate --review --status draft
+node run.mjs generate --approve <id,...>
+node run.mjs generate --reject <id,...>
+```
+
+- `draft` 不会进入混剪；`approved` 才会。
+- `retired` 保留文件，不参与混剪；需要重新启用时再 approve。
+- `--approve all` 只批准当前所有 draft；`--reject all` 只退役当前所有 draft。
+- 临时预览未审核素材：`node run.mjs mix --allow-draft ...`。
+
+## 4.3 音效与 BGM
+
+- 音效索引：`common/assets/sfx/index.json`；BGM 索引：`common/assets/music/index.json`。
+- 默认 `mix.music` 为 `auto`，`mix.sfx.enabled` 为 `true`。
+- 关闭：`--no-music` / `--no-sfx`；指定：`--music auto|<id>|<path>`。
+- 新增、替换、归一化和选曲规则见 `docs/AUDIO.md`。
+
+## 4.4 裂变作品
+
+```bash
+# 默认：用 shared 素材库编排，不生成新素材
+node run.mjs fission --works 3 --seed 20261108 --duration 12
+
+# 需要作品专属素材时才生成
+node run.mjs fission --work t1 --duration 6 --with-assets --per-layer 1,1,1
+
+node run.mjs mix --work work-t1 --duration 6
+node run.mjs generate --list-works
+node run.mjs generate --share <id,...>
+node run.mjs generate --clean-work work-t1
+```
+
+- 默认 `fission.generateAssets = false`：只用 shared + 实拍库；`--per-layer` 在默认模式下会被忽略。
+- `--with-assets` 才按 work seed 从 recipe pool 选材，素材 `scope=work`，自动 `approved`。
+- `mix --work` 不再强制专属素材；需要时加 `--require-work-asset`。
+- 不同 work 专属素材相互隔离；`--share` 才进入 shared。
+- `--clean-work` 默认 dry-run，`--force` 才删除。
+- 生成素材分类/完整性规则见 `docs/ASSETS.md`。
+- 详见 `docs/FISSION.md`。
+
+## 4.5 质量与覆盖
+
+```bash
+node run.mjs quality
+node run.mjs quality --force
+node run.mjs quality --report-only
+node run.mjs quality --edl mix-20261119-1
+node run.mjs quality --strict
+```
+
+- `generate` / `fission` 渲染后自动分析；`quality` 可单独重算或复查。
+- 报告：`data/quality/report.json`、`out/quality/report.md`。
+- 近似重复先判断是否共用底图（camera 系 recipe 与其 base preset 会聚在一起），不是所有近邻都要改。
+- `quality.ok = false` 的素材默认不进入混剪；`--allow-low-quality` 只做预览。
+- 详见 `docs/QUALITY.md`。
+
 ## 5. 新增混剪规则
 
 改 `modules/mix/planner.mjs`：
@@ -69,8 +139,13 @@ node run.mjs scan
 
 ```bash
 node run.mjs mix --duration 12 --outputs 2 --seed 20261108 --dry-run
+node run.mjs mix --duration 12 --seed 20261108 --shot-length 2.4 --dry-run
 node run.mjs check
 ```
+
+- 镜头节奏：`mix.shotLength.min/max` 定目标镜头长度，`beatJitter` 给每作品抖动，`minShots/maxShots` 定数量范围。
+- CLI：`--shot-length N`、`--shot-min N`、`--shot-max N`、`--beat-jitter N`、`--min-shots N`、`--max-shots N`。
+- 节拍是叙事窗口，镜头可以跨节拍；看 EDL 时以 `shot.at/dur` 为准。
 
 通过后再实渲。
 
@@ -115,18 +190,43 @@ node run.mjs mix
 rm data/edl/signatures.json
 ```
 
+## 8.1 运行目录与安全迁移
+
+复制仓库后先检查静态投影，不要直接删除 `public/`：
+
+```bash
+node run.mjs public
+node run.mjs public --apply
+```
+
+`--apply` 只会隔离空实体目录；非空冲突需要人工确认和 `--force`。缓存/检查产物使用：
+
+```bash
+node run.mjs cache list
+node run.mjs cache clean
+node run.mjs cache clean --force
+```
+
+核心框架、项目 manifest 和外部输入的边界见 `config/components.json` 与项目 `project.json`。`data/`、`out/`、`public/` 都是运行区域，不应作为核心源码包提交。
+
 ## 9. 渲染与复查
 
 ```bash
 node run.mjs generate --only platform-orbit --variants 1
+node run.mjs generate --recipe text-char-rise,transition-glitch --variants 1 --force
+node run.mjs generate --review --status draft
+node run.mjs generate --approve all
+node run.mjs quality --report-only
 node run.mjs mix --duration 12 --outputs 1 --seed 20261108 --dry-run
 node run.mjs mix --duration 12 --outputs 1 --seed 20261108
+node run.mjs mix --duration 12 --music auto --no-sfx
 ```
 
 - 静帧：`out/stills/`。
 - 分段：`out/segments/`。
 - 成片：`out/mix-*.mp4`。
 - 透明素材：`out/assets/*.webm`。
+- 音频：看 `data/edl/mix-*.json` 的 `audio.music` 与 `audio.sfx`；成片 `ffprobe` 应有音频流。
 
 ## 10. 提交前
 

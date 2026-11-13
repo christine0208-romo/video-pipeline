@@ -2,8 +2,10 @@ import {
   copyFileSync,
   existsSync,
   lstatSync,
+  readdirSync,
   readlinkSync,
   symlinkSync,
+  unlinkSync,
 } from "node:fs";
 import path from "node:path";
 import { ensureDir, slugify } from "./fsx.mjs";
@@ -41,16 +43,6 @@ export function linkDir(target, link) {
   );
 }
 
-export function linkFile(target, link) {
-  if (linkExists(link)) return;
-  ensureDir(path.dirname(link));
-  try {
-    symlinkSync(path.resolve(target), link);
-  } catch {
-    copyFileSync(target, link);
-  }
-}
-
 export function rootSlug(root, index) {
   const base = path
     .basename(root)
@@ -85,6 +77,11 @@ export function ensurePublicLinks(cfg) {
 
   const footageDir = path.join(publicDir, "footage");
   ensureDir(footageDir);
+  const previous = new Map(
+    readdirSync(footageDir, { withFileTypes: true })
+      .filter((entry) => entry.isSymbolicLink())
+      .map((entry) => [entry.name, path.join(footageDir, entry.name)]),
+  );
   cfg.footageLinks = [];
   cfg.footage.roots.forEach((root, index) => {
     const base = rootSlug(root, index);
@@ -99,17 +96,32 @@ export function ensurePublicLinks(cfg) {
       return;
     }
     linkDir(root, path.join(footageDir, name));
+    previous.delete(name);
     cfg.footageLinks.push({ name, root, missing: false });
   });
+  for (const [name, link] of previous) {
+    unlinkSync(link);
+    console.log(`[public] 已移除失效 footage 链接：${name}`);
+  }
   return cfg.footageLinks;
 }
 
 export function linkMusic(cfg, musicPath, subdir = "audio") {
   const dir = path.join(cfg.paths.public, subdir);
   ensureDir(dir);
-  const name = slugify(path.basename(musicPath), 60);
+  const name = slugify(
+    path.basename(musicPath, path.extname(musicPath)),
+    60,
+  );
   const extension = path.extname(musicPath);
   const file = `${name}${extension}`;
-  linkFile(musicPath, path.join(dir, file));
+  const dest = path.join(dir, file);
+  try {
+    const stat = lstatSync(dest);
+    if (stat.isSymbolicLink()) unlinkSync(dest);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  copyFileSync(musicPath, dest);
   return `${subdir}/${file}`;
 }

@@ -1,0 +1,11 @@
+{
+  "footage": {
+    "roots": [
+      "D:/Files/AI_Vedio/1_素材库/vedio"
+    ]
+  },
+  "tools": {
+    "ffmpeg": "ffmpeg",
+    "ffprobe": "ffprobe"
+  }
+}

@@ -37,6 +37,13 @@
   - 登记 `common/assets/REGISTRY.json`；
   - 写入 `CREDITS.md`；
   - 许可不清楚的不用。
+- 音效与 BGM 必须来自 CC0 或明确许可来源；CC BY 曲目发布时必须保留署名。
+- 音效登记 `common/assets/sfx/index.json`；BGM 登记 `common/assets/music/index.json`。
+- 音乐默认 auto 选曲；SFX 默认开启，但密度要克制（12 秒 ≤ 12 个）。
+- Work 素材 `scope=work`，普通 `mix` 只用 shared；跨作品复用必须 `--share` 手动提升。
+- 不自动清理 work 素材；`--clean-work` 默认 dry-run，`--force` 才删除。
+- 裂变作品的差异优先来自版式/背景/光色/文案/镜头/节奏/素材主题等独立轴；不要只靠增加 recipe 或换 seed。
+- variation profile 写入 catalog 与 EDL；提升 shared 后保留 profile，便于追溯。
 - 品牌图标只从 Simple Icons 等明确许可的来源取；不自行绘制平台 logo。
 - 音乐默认静音；启用时确认 CC BY 等署名要求。
 - 不把第三方截图/素材当成自有实拍；需要时标「示意」并记录来源。
@@ -48,14 +55,24 @@
 - 路径与曲线用 `@remotion/paths` 或现有 canvas 引擎；不要手搓复杂路径。
 - 同一版式第二次出现才提取到 `src/generated/parts.tsx` 或 `common/components`；提取后更新 `docs/MODULES.md`。
 - 不写同义组件（`fadeUp` / `revealTitle` 之类）；已有能力优先。
+- 新动效优先加 recipe（`src/generated/recipes.json`），不要为每个效果写一个 preset；只有 recipe 无法表达时才新增 preset / engine。
+- 生成素材默认 `draft`；先在 `out/stills/assets/` 复查，再 `generate --approve`；混剪只消费 `approved`。
+- 转场原子用透明 WebM，挂到 `shot.transitionAsset`；有转场原子时不要再叠加 CSS `TransitionFx`。
 - 新依赖必须登记 `docs/dependencies.json` 与 `docs/DEPENDENCIES.md`。
 
 ## 6. 渲染闸门
 
-- 生成素材：先 `generate --only <preset> --variants 1`，看 `out/stills/assets/` 的静帧，再批量生成。
+- 生成素材：先 `generate --recipe ... --variants 1`，看 `out/stills/assets/` 的静帧；再 `generate --review --status draft`，通过后 `--approve`。
 - 混剪：`mix` 自动先出关键帧，再分 3 段抽帧，最后全片。
+- `--allow-draft` 只用于预览，不用于正式出片。
+- 音频：先看 EDL 的 `audio.sfx` 是否过密；再看音乐是否在 SFX 下 duck；成片 `ffprobe` 必须有音频流。
+- 裂变：先 `fission --dry-run` 看 work 素材，再实际生成；fission 串行，不要并发跑多个 Remotion。
 - 发现构图/节奏问题，先改代码或配置，再重跑；不要直接全片重渲。
 - 生成素材按 `preset + props` 缓存；只有改 preset 或 props 才需要 `--force`。
+- 生成/裂变后确认 `quality` 已写入；`node run.mjs quality --report-only` 看近似重复与覆盖。
+- `quality.ok = false` 的素材不进入正式成片；`--allow-low-quality` 只用于预览。
+- 同一条成片内默认做感知去重；除非明确需要，不要关 `--no-perceptual-dedupe`。
+- 提交前可跑 `node run.mjs quality --strict`；共用底图的 camera 系素材被判近邻是预期行为，需人工判断。
 - 渲染前确认 ffmpeg/浏览器可用；`npm run doctor` 先跑。
 
 ## 7. 性能

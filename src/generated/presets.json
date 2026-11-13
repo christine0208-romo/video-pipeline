@@ -3,32 +3,74 @@
     {
       "id": "platform-orbit",
       "supportsAlpha": true,
+      "category": "icon",
       "description": "品牌图标环绕、聚拢、落位"
     },
     {
       "id": "social-constellation",
       "supportsAlpha": true,
+      "category": "icon",
       "description": "图标星座与连线脉冲"
     },
     {
       "id": "network-universe",
       "supportsAlpha": true,
+      "category": "icon",
       "description": "点阵世界地图与跨区域连线"
     },
     {
       "id": "icon-morph",
       "supportsAlpha": true,
-      "description": "图标之间遮罩擦除式转换"
+      "category": "icon",
+      "series": "platform-icons",
+      "loop": true,
+      "complete": "loop",
+      "description": "图标之间遮罩擦除式转换（完整循环）"
+    },
+    {
+      "id": "icon-glitch-scatter",
+      "supportsAlpha": true,
+      "category": "icon",
+      "series": "platform-icons-neon",
+      "loop": false,
+      "complete": "hold",
+      "description": "霓虹/赛博朋克多平台图标散布；基础 + 单平台故障变体"
     },
     {
       "id": "ui-mock",
       "supportsAlpha": false,
+      "category": "ui",
       "description": "手机界面示意：短信、通话、账号、注册"
     },
     {
       "id": "kinetic-grid",
       "supportsAlpha": true,
+      "category": "graphic",
       "description": "透视网格与穿越光门"
+    },
+    {
+      "id": "text-atom",
+      "supportsAlpha": true,
+      "category": "text",
+      "description": "文字动效原子：T01 / T03 / T06 / T08"
+    },
+    {
+      "id": "transition-atom",
+      "supportsAlpha": true,
+      "category": "transition",
+      "description": "转场原子：flash / wipe / glitch / light-leak"
+    },
+    {
+      "id": "particle-atom",
+      "supportsAlpha": true,
+      "category": "particle",
+      "description": "粒子原子：P01 尘埃 / P04 光球 / P05 流场"
+    },
+    {
+      "id": "camera-scene",
+      "supportsAlpha": false,
+      "category": "camera",
+      "description": "镜头包装：C01 推近 / C02 抖动 / C06 快速变焦 / C09 拉远"
     }
   ]
 }

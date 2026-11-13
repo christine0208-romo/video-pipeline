@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "core": {
+    "node": ">=22",
+    "npmInstall": true,
+    "packages": "package-lock.json",
+    "browser": "Chrome or Playwright headless shell",
+    "media": ["ffmpeg", "ffprobe", "libvpx-vp9"]
+  },
+  "optionalTools": {
+    "uvx-edge-tts": {
+      "command": "uvx",
+      "package": "edge-tts",
+      "purpose": "项目级 TTS，仅 sim-card-promo 需要",
+      "network": true
+    }
+  },
+  "projects": [
+    {
+      "id": "sim-card-promo",
+      "path": "projects/sim-card-promo",
+      "manifest": "projects/sim-card-promo/project.json",
+      "optional": true
+    }
+  ],
+  "runtime": {
+    "source": "external footage roots and tags.json",
+    "generated": ["data", "out", "public"],
+    "notPackaged": ["node_modules", "data", "out", "public"]
+  }
+}

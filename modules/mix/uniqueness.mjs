@@ -63,6 +63,20 @@ export function validateEdl(edl, registry, cfg) {
       }
     }
 
+    if (shot.transitionAsset) {
+      const asset = shot.transitionAsset;
+      if (!asset.src) {
+        errors.push(`镜头 ${shot.assetId} 的转场素材缺少 src`);
+      }
+      if (!(Number(asset.dur) > 0)) {
+        errors.push(`镜头 ${shot.assetId} 的转场素材时长无效`);
+      } else if (Number(asset.dur) > Number(shot.dur) + 0.05) {
+        errors.push(
+          `镜头 ${shot.assetId} 的转场素材 ${asset.dur}s 超过镜头时长 ${shot.dur}s`,
+        );
+      }
+    }
+
     if (shot.signature) {
       if (signatures.has(shot.signature)) {
         errors.push(`同一成片内视觉签名重复：${shot.signature}`);
@@ -112,6 +126,35 @@ export function validateEdl(edl, registry, cfg) {
         edl.durationInFrames / edl.fps
       ).toFixed(2)}s 不一致`,
     );
+  }
+
+  if (edl.beatFrames != null && !(Number(edl.beatFrames) > 0)) {
+    errors.push(`beatFrames 无效：${edl.beatFrames}`);
+  }
+
+  if (edl.audio) {
+    if (edl.audio.music && !edl.audio.music.src) {
+      errors.push("音乐缺少 src");
+    }
+    if (Array.isArray(edl.audio.sfx)) {
+      const total = edl.durationInFrames / edl.fps;
+      for (const effect of edl.audio.sfx) {
+        if (!effect.src) errors.push("SFX 缺少 src");
+        if (!(Number(effect.at) >= 0)) {
+          errors.push(`SFX 时间无效：${effect.at}`);
+        }
+        if (Number(effect.at) > total + 0.01) {
+          errors.push(`SFX 时间超过成片长度：${effect.at}`);
+        }
+        if (!(Number(effect.dur) > 0)) {
+          errors.push(`SFX 时长无效：${effect.dur}`);
+        }
+        const volume = Number(effect.volume ?? 0.4);
+        if (!(volume >= 0 && volume <= 1)) {
+          errors.push(`SFX 音量越界：${volume}`);
+        }
+      }
+    }
   }
 
   return {

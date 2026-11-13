@@ -49,6 +49,11 @@ export function slugify(value, max = 40) {
   return slug || "item";
 }
 
+export function normalizeWorkId(value) {
+  const slug = slugify(String(value), 48);
+  return slug.startsWith("work-") ? slug : `work-${slug}`;
+}
+
 export function walkFiles(root, { extensions, exclude } = {}) {
   if (!existsSync(root)) return [];
   const skip = new Set((exclude ?? []).map((x) => x.toLowerCase()));

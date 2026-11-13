@@ -96,7 +96,33 @@ npm run doctor
 - 分段的 `--frames` 只渲染需要检查的区间；全片最后再跑。
 - 素材分辨率过高时，考虑做 1080×1920 proxy。
 
-## public 链接冲突
+## public 实体目录迁移
+
+复制工作区后，`public/assets`、`public/generated`、`public/thumbs`、`public/music` 可能从 junction 变成实体目录。不要直接删除：
+
+```bash
+node run.mjs public
+node run.mjs public --apply
+```
+
+默认只报告；空实体目录会先改名为带时间戳的备份，再创建 junction。非空或内容冲突的目录必须人工确认，必要时显式加 `--force`；外部 footage 根目录缺失时不会伪造链接。
+
+## 缓存与临时产物
+
+查看受管缓存：
+
+```bash
+node run.mjs cache list
+```
+
+清理默认是 dry-run；只会处理 `.cache/video-pipeline`、`out/checks` 和 `out/downloads`：
+
+```bash
+node run.mjs cache clean
+node run.mjs cache clean --force
+```
+
+不会自动删除实拍、`common/assets`、catalog、EDL、approved 生成素材或项目成片。
 
 - 报错说明 `public/xxx` 已存在且指向别处。
 - 不要直接删除；先 `ls -l` / `Get-Item` 看目标，确认是旧链接后改名备份，再重跑。
@@ -114,3 +140,21 @@ npm run doctor
 - `npm ls remotion @remotion/cli`。
 - 所有 `@remotion/*` 必须同一版本；不要混用。
 - 升级时全家一起升级，并重跑一次 3 帧确定性测试与一条 12 秒成片。
+
+## quality 分析失败 / alpha 全 0
+
+- 确认抽 alpha 时用了 `-c:v libvpx-vp9`；native VP9 解码器不输出 WebM alpha 平面。
+- 用 `node run.mjs quality --force --list` 重算后看 `alphaCoverage`；完全为 0 才是空素材。
+- 细粒子被标 `faint-alpha` 是预期警告；阈值按缩放后的 alpha 校准，见 `docs/QUALITY.md`。
+
+## 覆盖报告里 variation 轴全是 n/a
+
+- shared preset / recipe 素材本来就没有 variation profile；只有 work 素材会有。
+- 旧 work 素材（variation 支持之前生成的）也没有；用 `fission --force` 重新生成即可。
+- catalog 里 `variation` 是扁平对象；读取时兼容 `variation.summary` 旧结构。
+
+## 近似重复太多
+
+- camera 系 recipe 与其 `basePreset` 共用底图，会被聚成同一感知簇，这是正常的。
+- 真正需要关注的是同一层、同一 recipe、但参数差异没有带来画面差异的配对。
+- 调整阈值：`node run.mjs quality --cluster-distance 8 --similarity-threshold 0.9`。

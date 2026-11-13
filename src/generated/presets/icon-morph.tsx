@@ -1,12 +1,10 @@
 import React from "react";
 import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";
-import { clamp01, keyedRandom } from "../../platform";
+import { keyedRandom } from "../../platform";
 import { SOCIAL_ICONS } from "../../assets";
 import { paletteOf } from "../palette";
 import { Caption, IconTile } from "../parts";
 import type { PresetProps } from "../types";
-
-const STEP = 0.85;
 
 export const IconMorph: React.FC<PresetProps> = ({
   alpha,
@@ -17,17 +15,25 @@ export const IconMorph: React.FC<PresetProps> = ({
   title,
 }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, durationInFrames } = useVideoConfig();
   const t = frame / fps;
   const p = paletteOf(palette);
   const count = Math.max(2, icons.length);
-  const index = Math.floor(t / STEP);
-  const local = (t % STEP) / STEP;
-  const wipe = local * local * (3 - 2 * local);
+  const duration = durationInFrames / fps;
+  const step = duration / count;
+  const cycle = durationInFrames <= 1 ? 0 : frame / (durationInFrames - 1);
+  const isLast = frame >= durationInFrames - 1;
+  const index = isLast ? 0 : Math.min(count - 1, Math.floor(t / step));
+  const local = isLast ? 0 : (t % step) / step;
+  const hold = Math.min(1, local / 0.82);
+  const wipe = hold * hold * (3 - 2 * hold);
   const current = icons[index % count];
   const next = icons[(index + 1) % count];
-  const label = labels?.[index % count] ?? title;
-  const shine = ((t * 0.55) % 1) * 1100 - 550;
+  const shownIndex = wipe < 0.5 ? index % count : (index + 1) % count;
+  const label = labels?.[shownIndex] ?? title;
+  const spin = cycle * Math.PI * 2 * 4;
+  const spinDeg = cycle * 360 * 4;
+  const shine = ((cycle * count) % 1) * 1100 - 550;
 
   return (
     <AbsoluteFill
@@ -59,11 +65,11 @@ export const IconMorph: React.FC<PresetProps> = ({
           <div
             style={{
               position: "absolute",
-              width: 460 + 30 * Math.sin(t * 2),
-              height: 460 + 30 * Math.sin(t * 2),
+              width: 460 + 30 * Math.sin(spin),
+              height: 460 + 30 * Math.sin(spin),
               borderRadius: "50%",
               border: `2px dashed ${p.accent}44`,
-              transform: `rotate(${t * 22}deg)`,
+              transform: `rotate(${spinDeg}deg)`,
             }}
           />
           <div
@@ -80,7 +86,7 @@ export const IconMorph: React.FC<PresetProps> = ({
           <div
             style={{
               position: "absolute",
-              opacity: 1 - wipe * 0.35,
+              opacity: 1 - wipe,
               transform: `scale(${1 - 0.08 * wipe}) rotate(${-5 * wipe}deg)`,
             }}
           >
@@ -121,7 +127,7 @@ export const IconMorph: React.FC<PresetProps> = ({
           </div>
 
           {Array.from({ length: 6 }, (_, i) => {
-            const angle = keyedRandom(seed, `spark-angle-${i}`) * Math.PI * 2 + t * 0.4;
+            const angle = keyedRandom(seed, `spark-angle-${i}`) * Math.PI * 2 + spin;
             const radius = 300 + keyedRandom(seed, `spark-radius-${i}`) * 90;
             const size = 6 + keyedRandom(seed, `spark-size-${i}`) * 10;
             return (
@@ -133,7 +139,7 @@ export const IconMorph: React.FC<PresetProps> = ({
                   height: size,
                   borderRadius: "50%",
                   background: p.accent,
-                  opacity: 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(t * 2 + i)),
+                  opacity: 0.25 + 0.35 * (0.5 + 0.5 * Math.sin(spin + i)),
                   transform: `translate(${Math.cos(angle) * radius}px, ${
                     Math.sin(angle) * radius
                   }px)`,
@@ -156,7 +162,7 @@ export const IconMorph: React.FC<PresetProps> = ({
             fontSize: 34,
             letterSpacing: "0.14em",
             color: p.text2,
-            opacity: clamp01(local * 2),
+            opacity: 0.35 + 0.65 * Math.sin(Math.PI * local),
           }}
         >
           {label}

@@ -159,6 +159,30 @@
       "source": "作者提供",
       "license": "作者所有",
       "attribution": "速铭 logo — 仅本工作区使用"
+    },
+    {
+      "id": "sfx.kenney",
+      "glob": "sfx/*",
+      "kind": "sfx",
+      "source": "Kenney — UI Audio / Interface Sounds / Impact Sounds / Digital Audio",
+      "license": "CC0 1.0",
+      "attribution": "Kenney, CC0 1.0；原始文件与映射见 sfx/index.json"
+    },
+    {
+      "id": "music.aeris",
+      "glob": "music/aeris-*.mp3",
+      "kind": "music",
+      "source": "AERIS MUSIC CC0 production music",
+      "license": "CC0 1.0",
+      "attribution": "AERIS MUSIC, CC0 1.0"
+    },
+    {
+      "id": "music.metadata",
+      "files": ["music/index.json"],
+      "kind": "data",
+      "source": "本工作区整理",
+      "license": "本工作区",
+      "attribution": "曲目元数据与选曲依据"
     }
   ]
 }

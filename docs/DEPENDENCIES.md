@@ -53,3 +53,31 @@
 - 本文件表格加一行。
 - 若封装组件，更新 `docs/MODULES.md`。
 - `npm run check` 必须通过。
+
+## 核心与可选运行环境
+
+核心框架需要：
+
+| 类别 | 要求 | 用途 |
+|---|---|---|
+| Node.js | >= 22（建议由 fnm 管理） | CLI、Remotion、工作台 |
+| ffmpeg / ffprobe | PATH 或 `config/pipeline.json.tools` | 探测、抽帧、编码、质量分析 |
+| libvpx-vp9 | ffmpeg 编解码器 | 透明 WebM alpha |
+| Chrome / headless shell | Remotion 可调用 | 浏览器渲染 |
+| npm | 使用 `package-lock.json` | 安装核心 npm 依赖 |
+
+可选项目环境：
+
+| 工具 | 适用项目 | 备注 |
+|---|---|---|
+| uv / uvx + Python 3.12 | `sim-card-promo` TTS | 只有重新生成 edge-tts 音频时需要 |
+| 网络访问 | `sim-card-promo` TTS | 运行时调用 Microsoft edge-tts；也可提供预生成 voiceover |
+
+核心安装不包含实拍素材、`data/`、`out/`、`public/` 或 `node_modules/`；项目依赖见 `config/components.json` 和各项目的 `project.json`。
+
+| 工具 | 版本 | 用途 | 备注 |
+|---|---|---|---|
+| `edge-tts`（uvx） | 7.3.1 | `projects/sim-card-promo` 的 TTS 口播 | 需要联网调用微软语音服务；只用于离线生成音频，不进入 Remotion 运行时；不写入 `package.json` |
+
+- 不把 TTS 作为渲染依赖；生成后的 `voiceover.wav` 是普通音频文件。
+- 换机器/离线环境时，需要提前生成 TTS 或替换为已有音频。

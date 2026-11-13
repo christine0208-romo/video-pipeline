@@ -8,7 +8,7 @@
 2. 跑 `npm run doctor`；缺依赖、ffmpeg、浏览器、素材根目录，先修再继续。
 3. 看 `config/pipeline.json` 的 `footage.roots`、`spec`、`generate.presets`、`mix`。
 4. 素材有变化先 `node run.mjs scan`；生成素材有变化先 `node run.mjs generate`。
-5. 出片走 `node run.mjs mix`；它会先出静帧、再分 3 段抽帧、最后全片。
+5. 生成/裂变后跑 `node run.mjs quality --report-only` 看感知重复与覆盖；出片走 `node run.mjs mix`，它会先出静帧、再分 3 段抽帧、最后全片。
 6. 收尾：
    - 更新 `STATUS.md`；
    - 有新坑追加 `docs/LESSONS.md`；
@@ -26,11 +26,14 @@
 | 位置 | 放什么 |
 |---|---|
 | `config/pipeline.json` | 主配置：规格、素材根、生成 preset、混剪节拍 |
-| `run.mjs` | 一键入口：`scan / generate / mix / all / stills / check` |
+| `run.mjs` | 一键入口：`scan / generate / quality / mix / all / stills / check` |
 | `modules/scan` | 扫描、增量、打标、场景切分、缩略图 |
 | `modules/generate` | 生成素材目录、变体、渲染调度 |
+| `modules/quality` | pHash、观感相似度、感知聚类、覆盖矩阵、质量闸门 |
 | `modules/mix` | EDL 规划、去重、渲染 |
 | `modules/lib` | 配置、ffmpeg、public 链接、Remotion 封装 |
+| `workbench` | 本地 Web 工作台：素材/成片/质量浏览、任务队列、实时日志 |
+| `projects` | 具体成片项目：TTS、分镜脚本、混音与项目说明 |
 | `src` | Remotion composition：`PipelineAsset` 与 `MixVideo` |
 | `src/generated` | 6 个 preset、注册表、图标清单 |
 | `common` | 上游资源快照：engine / components / vendor / assets / shots |
@@ -53,8 +56,9 @@
 
 - `data/footage.manifest.json`：全量素材索引，含 `status: active | missing`。
 - `data/library.json`：给模块三用的活跃素材数组，含 `scenes[]`、`tags`、`crop`、`publicSrc`。
-- `data/catalog.json`：生成素材目录，含 `publicMp4`、`publicWebm`、`props`、`duration`。
-- `data/edl/mix-*.json`：成片时间线；`data/edl/signatures.json`：跨成片去重记录。
+- `data/catalog.json`：生成素材目录，含 `publicMp4`、`publicWebm`、`props`、`duration`、`quality`。
+- `data/quality/report.json`：质量与覆盖报告；`out/quality/report.md`：人读版。
+- `data/edl/mix-*.json`：成片时间线；`beats[]` 是叙事窗口，镜头可跨节拍，`beats[].shots[]` 允许为空。`data/edl/signatures.json`：跨成片去重记录。
 - `out/assets`：生成素材；`out/stills`：静帧；`out/segments`：分段；`out/mix-*.mp4`：成片。
 
 不要手改 `data/` 里的自动产物；要改就改配置或源码，然后重跑对应 stage。
@@ -76,10 +80,14 @@
 
 ```bash
 npm run doctor
+npm run workbench
 node run.mjs all
 node run.mjs scan --check
 node run.mjs generate --only platform-orbit --variants 1
+node run.mjs quality --report-only
+node run.mjs quality --strict
 node run.mjs mix --duration 15 --outputs 2 --seed 20261108
+node run.mjs mix --duration 15 --seed 20261108 --shot-length 2.4
 node run.mjs stills
 node run.mjs check
 npm run check
@@ -110,4 +118,6 @@ npm run typecheck
 - 规格、时长、受众不清楚：先问，不猜。
 - 素材许可不清楚：不用，换素材或问用户。
 - 要改公共层：先看 `docs/MODULES.md`，能组合就不新增。
+- 要新增/修改生成素材：先看 `docs/ASSETS.md`；声明 `category`，保证动画完整（循环闭合 / 末帧稳定 / 转场回透明），跑 `node run.mjs quality --force`。
+- 裂变默认只复用 shared 素材库；需要作品专属素材时才加 `--with-assets`，不要默认生成。
 - 要新增依赖：先看 `docs/DEPENDENCIES.md` 的候选表，走 3 帧确定性测试后再登记。

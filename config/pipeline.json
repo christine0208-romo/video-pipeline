@@ -6,9 +6,19 @@
   },
   "dataDir": "data",
   "outDir": "out",
+  "runtime": {
+    "publicDir": "public",
+    "cacheDir": ".cache/video-pipeline",
+    "tempDir": ".cache/video-pipeline/tmp",
+    "releaseDir": "release"
+  },
+  "tools": {
+    "ffmpeg": "ffmpeg",
+    "ffprobe": "ffprobe"
+  },
   "footage": {
     "roots": [
-      "D:/Files/AI_Vedio/1_素材库/vedio"
+      "footage"
     ],
     "extensions": [
       ".mp4",
@@ -55,7 +65,25 @@
       "ui-mock",
       "kinetic-grid"
     ],
+    "recipes": [
+      "text-char-rise",
+      "text-typewriter",
+      "text-keyword",
+      "platform-icons-neon",
+      "platform-icons-neon-global",
+      "transition-flash",
+      "transition-wipe",
+      "transition-glitch",
+      "transition-light-leak",
+      "particle-dust",
+      "particle-orbs",
+      "camera-push",
+      "camera-shake",
+      "camera-zoom",
+      "camera-pull"
+    ],
     "variantsPerPreset": 2,
+    "variantsPerRecipe": 2,
     "duration": 3,
     "formats": [
       "mp4",
@@ -67,9 +95,37 @@
     "outputs": 1,
     "seed": 20261108,
     "maxPerAsset": 3,
+    "maxPerRecipe": 2,
     "minGap": 2,
     "generatedRatio": 0.3,
-    "music": null,
+    "shotLength": {
+      "min": 1.4,
+      "max": 2.6
+    },
+    "beatJitter": 0.15,
+    "minShots": 4,
+    "maxShots": 12,
+    "allowDraft": false,
+    "allowLowQuality": false,
+    "perceptualDedupe": true,
+    "requireWorkAsset": false,
+    "bpm": null,
+    "music": {
+      "mode": "auto",
+      "mood": "calm",
+      "energy": "medium",
+      "volume": 0.6,
+      "fadeIn": 0.8,
+      "fadeOut": 1,
+      "duckTo": 0.22
+    },
+    "sfx": {
+      "enabled": true,
+      "volume": 1.4,
+      "duckMusic": true,
+      "maxPerOutput": 16,
+      "minGap": 0.05
+    },
     "beats": [
       {
         "role": "hook",
@@ -92,5 +148,34 @@
         "ratio": 0.12
       }
     ]
+  },
+  "fission": {
+    "works": 1,
+    "seed": 20261108,
+    "duration": null,
+    "generateAssets": false,
+    "assetsPerLayer": {
+      "scene": 1,
+      "overlay": 2,
+      "transition": 2
+    },
+    "recipePool": "all"
+  },
+  "quality": {
+    "autoAnalyze": true,
+    "sampleFrames": 8,
+    "phashSize": 32,
+    "alphaSampleWidth": 96,
+    "alphaThreshold": 4,
+    "minAlphaCoverage": 0.001,
+    "faintAlphaCoverage": 0.01,
+    "minMotionEnergy": 0.00002,
+    "minContrast": 0.008,
+    "loopDistance": 12,
+    "settleMotion": 0.004,
+    "clearAlpha": 0.02,
+    "clusterDistance": 12,
+    "similarityThreshold": 0.86,
+    "maxSimilarityPairs": 24
   }
 }
