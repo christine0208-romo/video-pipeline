@@ -9,6 +9,32 @@ import { resolveParams, styleOf } from "./params.mjs";
 
 const ALL_BEAT_ROLES = ["hook", "build", "proof", "turn", "close"];
 
+const PROJECT_ASSET_PREFIX = "project/";
+
+/**
+ * 工程自带素材：参数里写 `project/...`，编译时解析成 public 下的
+ * `creative/<id>/assets/...`。公共素材继续写 `assets/...`。
+ */
+export function resolveProjectAssets(value, creativeId) {
+  if (typeof value === "string") {
+    return value.startsWith(PROJECT_ASSET_PREFIX)
+      ? `creative/${creativeId}/assets/${value.slice(PROJECT_ASSET_PREFIX.length)}`
+      : value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveProjectAssets(item, creativeId));
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [
+        key,
+        resolveProjectAssets(item, creativeId),
+      ]),
+    );
+  }
+  return value;
+}
+
 const presetMetaOf = (engine) => ({
   id: engine.preset,
   supportsAlpha: Boolean(engine.alpha),
@@ -70,6 +96,7 @@ export function compileProject(
       });
       if (errors.length) throw new Error(errors.join("\n"));
       for (const warning of warnings) log?.(`[creative] 警告 ${warning}`);
+      props = resolveProjectAssets(props, project.id);
 
       let durationFrames = variant.durationFrames ?? style.durationFrames;
       if (profile) {

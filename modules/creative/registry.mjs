@@ -2,12 +2,14 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { readJson } from "../lib/fsx.mjs";
 
-const toImport = (from, file) =>
-  `./${path
+const toImport = (from, file) => {
+  const relative = path
     .relative(from, file)
     .split(path.sep)
     .join("/")
-    .replace(/\.tsx?$/, "")}`;
+    .replace(/\.tsx?$/, "");
+  return relative.startsWith(".") ? relative : `./${relative}`;
+};
 
 const toFileImport = (from, file) =>
   `./${path.relative(from, file).split(path.sep).join("/")}`;
@@ -123,8 +125,12 @@ export function generateRegistry(cfg) {
   lines.push(
     "export type FontSpec = { family: string; file: string; weight?: string; style?: string; stretch?: string };",
   );
-  if (existsSync(path.join(cfg.paths.creative, "shared", "fonts.ts"))) {
-    lines.push('export { FONT_MANIFEST } from "./shared/fonts";');
+  const registryFile = path.join(cfg.paths.creative, "registry.ts");
+  const fontsFile = path.join(cfg.paths.shared, "fonts.ts");
+  if (existsSync(fontsFile)) {
+    lines.push(
+      `export { FONT_MANIFEST } from "${toImport(path.dirname(registryFile), fontsFile)}";`,
+    );
   } else {
     lines.push("export const FONT_MANIFEST: FontSpec[] = [];");
   }

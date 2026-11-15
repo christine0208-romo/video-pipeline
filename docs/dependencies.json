@@ -14,12 +14,6 @@
       "license": "Remotion License",
       "deterministic": "build-time"
     },
-    "@remotion/paths": {
-      "version": "4.0.539",
-      "purpose": "vendored 动效库中的路径测量与沿线运动",
-      "license": "MIT",
-      "deterministic": "frame-driven"
-    },
     "react": {
       "version": "19.2.3",
       "purpose": "组件运行时",

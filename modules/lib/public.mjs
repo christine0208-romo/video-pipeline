@@ -148,6 +148,30 @@ function linkAssetRoots(cfg, publicDir) {
   mergeAssetDir(roots, dest);
 }
 
+/** 工程自带素材：creative/<id>/assets -> public/creative/<id>/assets */
+function linkProjectAssets(cfg, publicDir) {
+  const dest = path.join(publicDir, "creative");
+  ensureDir(dest);
+  const keep = new Set();
+  const creativeRoot = cfg.paths.creative;
+  if (existsSync(creativeRoot)) {
+    for (const entry of readdirSync(creativeRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const assets = path.join(creativeRoot, entry.name, "assets");
+      if (!existsSync(assets)) continue;
+      keep.add(entry.name);
+      ensureDir(path.join(dest, entry.name));
+      linkDir(assets, path.join(dest, entry.name, "assets"));
+    }
+  }
+  for (const entry of readdirSync(dest, { withFileTypes: true })) {
+    if (keep.has(entry.name)) continue;
+    const full = path.join(dest, entry.name);
+    if (entry.isSymbolicLink()) unlinkSync(full);
+    else removeTree(full);
+  }
+}
+
 export function ensurePublicLinks(cfg) {
   const publicDir = cfg.paths.public;
   ensureDir(publicDir);
@@ -165,6 +189,8 @@ export function ensurePublicLinks(cfg) {
   } else {
     console.warn("[public] 素材根里没有 music/：跳过 public/music");
   }
+
+  linkProjectAssets(cfg, publicDir);
 
   const footageDir = path.join(publicDir, "footage");
   ensureDir(footageDir);

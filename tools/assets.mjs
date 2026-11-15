@@ -7,9 +7,10 @@
  *   node tools/assets.mjs list
  *
  * 素材根：config/pipeline.json 的 assets.roots（可用 --asset-roots 覆盖）
- * 清单：creative/shared/assets.manifest.json（内容包；可用 --manifest 指定）
+ * 清单：shared/assets.manifest.json（公共资源层；可用 --manifest 指定）
  *
- * 没有清单时视为空核心：所有命令打印“无内容包”并以 0 退出。
+ * 没有清单时：scan --apply 会从素材根生成清单（license=unknown，待人工补）；
+ * check / fetch / list 只报告未登记文件并以 0 退出（--strict 时未登记视为失败）。
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -18,12 +19,12 @@ import {
   KIND_BY_DIR,
   diffAssetFiles,
   findAssetFile,
+  scanAssetFiles,
   sha256,
 } from "../modules/lib/assets.mjs";
 import { loadConfig } from "../modules/lib/config.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const DEFAULT_MANIFEST = path.join(ROOT, "creative", "shared", "assets.manifest.json");
 
 const argv = process.argv.slice(2);
 const command = argv[0]?.startsWith("-") ? "check" : (argv[0] ?? "check");
@@ -35,25 +36,37 @@ const value = (name, fallback = null) => {
 
 const rel = (file) => path.relative(ROOT, file).split(path.sep).join("/");
 
+const cfg = loadConfig(argv);
 const manifestFile = value("manifest")
   ? path.resolve(value("manifest"))
-  : DEFAULT_MANIFEST;
+  : path.join(cfg.paths.shared, "assets.manifest.json");
 
-if (!existsSync(manifestFile)) {
-  console.log(`[assets] 无内容包：缺少 ${rel(manifestFile)}，跳过素材检查`);
-  process.exit(0);
-}
-
-const cfg = loadConfig(argv);
 const roots = cfg.assetRoots;
 const primaryRoot = roots[0];
-const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+const manifestExists = existsSync(manifestFile);
+const manifest = manifestExists
+  ? JSON.parse(readFileSync(manifestFile, "utf8"))
+  : { version: 1, assets: [] };
 const entriesOf = () => (manifest.assets ??= []);
 
+function unregisteredMessage() {
+  const { found } = scanAssetFiles(roots);
+  if (!found.size) {
+    console.log(`[assets] 没有内容包清单（${rel(manifestFile)}），素材根为空`);
+    return 0;
+  }
+  console.log(
+    `[assets] 没有内容包清单：素材根里有 ${found.size} 个文件；运行 node tools/assets.mjs scan --apply 生成清单`,
+  );
+  return flag("strict") ? 1 : 0;
+}
+
 function check(verify = false) {
+  if (!manifestExists) return unregisteredMessage();
   const missing = [];
   const badHash = [];
   const unknownLicense = [];
+  const diff = diffAssetFiles(entriesOf(), roots);
   for (const entry of entriesOf()) {
     if (!entry.license || entry.license === "unknown") unknownLicense.push(entry);
     const file = findAssetFile(roots, entry.path);
@@ -76,11 +89,15 @@ function check(verify = false) {
   for (const entry of unknownLicense) {
     console.log(`许可未登记 ${entry.path} — 补 license 后才能 --strict`);
   }
+  for (const item of diff.added) {
+    console.log(`未登记 ${item.path} — 运行 node tools/assets.mjs scan --apply`);
+  }
   console.log(
-    `[assets] ${entriesOf().length} 条 / 缺失 ${missing.length} / 哈希不符 ${badHash.length} / 许可未登记 ${unknownLicense.length}`,
+    `[assets] ${entriesOf().length} 条 / 未登记 ${diff.added.length} / 缺失 ${missing.length} / 哈希不符 ${badHash.length} / 许可未登记 ${unknownLicense.length}`,
   );
   if (missing.length || badHash.length) return 1;
-  return flag("strict") && unknownLicense.length ? 1 : 0;
+  if (flag("strict") && (unknownLicense.length || diff.added.length)) return 1;
+  return 0;
 }
 
 function scan() {
@@ -118,11 +135,18 @@ function scan() {
       const removedPaths = new Set(removed.map((entry) => entry.path));
       manifest.assets = entriesOf().filter((entry) => !removedPaths.has(entry.path));
     }
-    manifest.generatedAt = new Date().toISOString();
-    writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
-    console.log(
-      `[assets] 已写回 ${rel(manifestFile)}：新增 ${added.length} / 更新 ${changed.length} / 移除 ${flag("prune") ? removed.length : 0}`,
-    );
+    const shouldWrite =
+      manifestExists || added.length > 0 || changed.length > 0;
+    if (shouldWrite) {
+      mkdirSync(path.dirname(manifestFile), { recursive: true });
+      manifest.generatedAt = new Date().toISOString();
+      writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+      console.log(
+        `[assets] 已写回 ${rel(manifestFile)}：新增 ${added.length} / 更新 ${changed.length} / 移除 ${flag("prune") ? removed.length : 0}`,
+      );
+    } else {
+      console.log("[assets] 素材根为空，未生成清单");
+    }
   }
 
   console.log(
@@ -168,6 +192,12 @@ function copyFrom(entry, fromRoot) {
 }
 
 async function fetchAssets() {
+  if (!manifestExists) {
+    console.log(
+      "[assets] 没有内容包清单：把素材放进素材根后运行 node tools/assets.mjs scan --apply 生成清单；已有清单时可用 --from <dir> 部署",
+    );
+    return 0;
+  }
   const fromRoot = value("from") ? path.resolve(value("from")) : null;
   let failed = 0;
   for (const entry of entriesOf()) {
@@ -191,6 +221,7 @@ async function fetchAssets() {
 }
 
 if (command === "list") {
+  if (!manifestExists) process.exit(unregisteredMessage());
   for (const entry of entriesOf()) {
     console.log(
       `${entry.path}\t${entry.kind}\t${entry.url ? "auto" : "user"}\t${entry.license}`,

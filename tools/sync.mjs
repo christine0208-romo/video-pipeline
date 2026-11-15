@@ -13,6 +13,7 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../modules/lib/config.mjs";
+import { scanAssetFiles } from "../modules/lib/assets.mjs";
 import {
   listEnginePackages,
   registryStatus,
@@ -60,7 +61,7 @@ if (status.ok) {
 console.log(`[sync] 创意工程 ${countCreatives(cfg.paths.creative)} 个`);
 
 // 2. 素材清单
-const manifest = path.join(cfg.paths.creative, "shared", "assets.manifest.json");
+const manifest = path.join(cfg.paths.shared, "assets.manifest.json");
 if (existsSync(manifest)) {
   const result = spawnSync(
     process.execPath,
@@ -69,7 +70,22 @@ if (existsSync(manifest)) {
   );
   if (result.status !== 0) differences += 1;
 } else {
-  console.log("[sync] 无内容包素材清单，跳过素材扫描");
+  const { found } = scanAssetFiles(cfg.assetRoots);
+  if (!found.size) {
+    console.log("[sync] 无内容包素材清单，素材根为空");
+  } else if (apply) {
+    const result = spawnSync(
+      process.execPath,
+      [path.join(ROOT, "tools", "assets.mjs"), "scan", "--apply"],
+      { cwd: ROOT, stdio: "inherit" },
+    );
+    if (result.status !== 0) differences += 1;
+  } else {
+    differences += 1;
+    console.log(
+      `[sync] 素材根有 ${found.size} 个文件但缺少清单；运行 node run.mjs sync --apply 或 node tools/assets.mjs scan --apply`,
+    );
+  }
 }
 
 // 3. 实拍

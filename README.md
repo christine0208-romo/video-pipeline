@@ -17,32 +17,37 @@ node run.mjs all
 
 ## 新机器部署（只拉核心框架）
 
-仓库只提交核心框架；`data/`、`out/`、`public/`、`node_modules/`、`.cache/`、`release/`、`projects/`、`creative/`、`config/local.json` 都不入库。项目包与创意包按需单独部署。
+仓库只提交核心框架；`data/`、`out/`、`public/`、`node_modules/`、`.cache/`、`release/`、`projects/`、`shared/`、`creative/`、`assets/`、`config/local.json` 都不入库。公共资源、创意、素材与项目都是内容区，**结构与规范随核心分发**（见 [docs/architecture/SHARED.md](docs/architecture/SHARED.md)）。
 
 ```bash
 git clone <repo> video-pipeline
 cd video-pipeline
-npm ci
+npm ci                      # postinstall 生成空 creative/registry.ts
+node run.mjs shared init    # 生成 shared/ 结构与素材根目录
 npm run doctor
+node run.mjs shared status
 ```
 
-`npm ci` 的 postinstall 会执行 `tools/init-creative.mjs`：没有创意包时生成一个空的 `creative/registry.ts`，保证核心仓库可以 typecheck / check。此时两个素材库都是空的，渲染没有对象。
+`shared init` 只创建缺失文件，不覆盖已有内容；`--force` 才按模板重写。
 
-素材二进制也不入库。按清单部署（字体/图标/音效/BGM）：
+素材二进制同样不入库。有清单时按清单部署；没有清单时把文件放进 `assets/` 再登记：
 
 ```bash
-npm run assets:check
 npm run assets:fetch                  # 只有稳定直链的条目会自动下载
 npm run assets:fetch -- --from D:/my-assets
+# 或没有清单时：
+#   放入 assets/ 后运行 node run.mjs sync --apply
+
+npm run assets:check
 ```
 
-清单在 `creative/shared/assets.manifest.json`（属于内容包）；没有直链的条目会提示用 `--from` 提供。
+清单在 `shared/assets.manifest.json`；没有直链的条目会提示用 `--from` 提供。
 
-部署创意包后，生成注册表再构建：
+放入创意包后，同步再构建：
 
 ```bash
-# 把创意包放到仓库根 creative/（含 engine.json、index.tsx、creative.json、variants）
-node run.mjs creative scan --write-registry
+# creative/：创意工程（engine.json、index.tsx、creative.json、variants）
+node run.mjs sync --apply
 node run.mjs creative build
 ```
 
@@ -92,7 +97,7 @@ node run.mjs mix --duration 15 --dry-run
 - 参数、风格、文案在 `creative/` 里改，不需要碰 React；工作台 `#/creative` 提供 schema 驱动的编辑、预览、构建与审核。
 - 新素材默认 `draft`，混剪只消费 `approved`；`--allow-draft` 可临时预览未审核素材。
 - 产物：`out/assets/`、`data/catalog.json`、`out/stills/assets/`、`out/creatives/`。
-- 完整格式见 `docs/CREATIVE.md`。
+- 完整格式见 `docs/architecture/CREATIVE.md`。
 
 **三、混剪**
 
@@ -107,18 +112,18 @@ node run.mjs mix --duration 15 --dry-run
 
 - `fission` 默认按作品编排，直接复用 shared 创意素材库；`--with-assets` 时才从创意变体池生成作品专属素材。
 - 不同作品默认不复用生成素材；只有 `--share` 手动提升的素材进入 shared。
-- 每个 work 还会从 `creative/shared/variation.json` 抽调色板、文本版式/背景/光位/字体/文案、粒子分布/背景、镜头底图/post/grade、转场角度/强度、时长、节奏和实拍主题。
+- 每个 work 还会从 `shared/variation.json` 抽调色板、文本版式/背景/光位/字体/文案、粒子分布/背景、镜头底图/post/grade、转场角度/强度、时长与节奏。
 - 素材以缓存形式留在创意素材库；同一 work 重跑直接复用，`--force` 才重渲。
 - `mix --work <id>` 只使用 shared + 当前 work 素材；planner 优先 work-local。
 - `creative list-works` 查看；`creative clean-work <id>` 默认 dry-run，`--force` 才删除。
-- 详见 `docs/FISSION.md`。
+- 详见 `docs/operations/FISSION.md`。
 
 **五、音频**
 
 - 默认自动选 BGM（AERIS CC0），按叙事角色做能量曲线，并在 SFX 下 duck。
 - SFX 来自 Kenney CC0，按转场、文字叠加、UI mock 和节拍落点。
 - 关闭：`--no-music` / `--no-sfx`；指定：`--music auto|<id>|<path>`。
-- 设计规则、来源与响度：`docs/AUDIO.md`。
+- 设计规则、来源与响度：`docs/architecture/AUDIO.md`。
 
 ## 常用命令
 
@@ -130,7 +135,7 @@ node run.mjs all
 npm run workbench
 ```
 
-- 工作台默认地址 `http://127.0.0.1:4317/`；素材、成片、质量浏览与任务队列见 `docs/WORKBENCH.md`。
+- 工作台默认地址 `http://127.0.0.1:4317/`；素材、成片、质量浏览与任务队列见 `docs/operations/WORKBENCH.md`。
 - 自动打开浏览器：`npm run workbench:open`。
 
 ```bash
@@ -276,10 +281,11 @@ node run.mjs check
 config/       主配置（footage.roots 实拍库、assets.roots 素材库）
 modules/      scan / creative / quality / mix / fission / generate(共享工具) / lib
 src/          Remotion composition 与通用类型
-creative/     创意内容包：引擎、变体、shared 素材清单与音频索引（gitignore）
+creative/     创意工程包：每个工程独立的引擎、变体、可选本地素材（gitignore）
+shared/       公共资源与预设：素材清单、字体/音频索引、设计令牌、平台避让、公共代码、镜头卡（gitignore）
 assets/       素材库，可配置多根，用户与系统共同维护（gitignore）
 projects/     成片项目包（gitignore）
-common/       上游资源快照（engine / vendor）
+common/       核心原语（engine）
 data/         素材库、目录、EDL、签名库（gitignore）
 out/          生成素材、静帧、分段、成片（gitignore）
 public/       渲染静态根，运行时自动建链接（gitignore）
@@ -289,25 +295,27 @@ tools/        doctor / check / assets / sync / projects
 
 ## 文档
 
-先读 [CLAUDE.md](CLAUDE.md)。其余：
+先读 [CLAUDE.md](CLAUDE.md)，完整分类见 [docs/README.md](docs/README.md)。常用：
 
-- [docs/ONBOARDING.md](docs/ONBOARDING.md) — 10 分钟上手
-- [docs/RULES.md](docs/RULES.md) — 规则细则
-- [docs/WORKFLOW.md](docs/WORKFLOW.md) — 常见任务流程
-- [docs/LESSONS.md](docs/LESSONS.md) — 踩坑记录（只追加）
-- [docs/MODULES.md](docs/MODULES.md) — 模块与 preset 注册表
-- [docs/MOTION_PROMPTS.md](docs/MOTION_PROMPTS.md) — 9 类 90 条动效提示词库、竖屏适配与配方字段
-- [docs/AUDIO.md](docs/AUDIO.md) — 音效/BGM 设计、来源与响度规则
-- [docs/FISSION.md](docs/FISSION.md) — 作品级生成素材隔离、缓存、提升与清理
-- [docs/DEPENDENCIES.md](docs/DEPENDENCIES.md) — 依赖政策与登记
-- [docs/DECISIONS.md](docs/DECISIONS.md) — 架构决策
-- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) — 排错
+- [docs/operations/WORKFLOW.md](docs/operations/WORKFLOW.md) — 10 分钟上手与常见任务
+- [docs/reference/RULES.md](docs/reference/RULES.md) — 规则细则
+- [docs/architecture/ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md) — 分层与模块地图
+- [docs/architecture/SHARED.md](docs/architecture/SHARED.md) — 公共资源层与素材库
+- [docs/architecture/CREATIVE.md](docs/architecture/CREATIVE.md) — 创意工程
+- [docs/architecture/ASSETS.md](docs/architecture/ASSETS.md) — 生成素材契约
+- [docs/architecture/AUDIO.md](docs/architecture/AUDIO.md) — 音效/BGM
+- [docs/operations/QUALITY.md](docs/operations/QUALITY.md) — 质量与覆盖
+- [docs/operations/FISSION.md](docs/operations/FISSION.md) — 裂变作品
+- [docs/operations/WORKBENCH.md](docs/operations/WORKBENCH.md) — 工作台
+- [docs/operations/DEPENDENCIES.md](docs/operations/DEPENDENCIES.md) — 依赖政策
+- [docs/operations/TROUBLESHOOTING.md](docs/operations/TROUBLESHOOTING.md) — 排错
+- [docs/reference/MOTION_PROMPTS.md](docs/reference/MOTION_PROMPTS.md) — 动效提示词库
+- [docs/records/LESSONS.md](docs/records/LESSONS.md)、[docs/records/DECISIONS.md](docs/records/DECISIONS.md) — 记录
 - [STATUS.md](STATUS.md) — 当前状态与待办
-- [CREDITS.md](CREDITS.md) — 素材来源与许可
 
 ## 素材与许可
 
-品牌图标来自 Simple Icons（CC0 1.0），品牌标识归各平台所有，仅作类别示意。字体为 SIL OFL 1.1。世界点阵地图为 Public Domain。镜头卡来自 video-shotcraft（Apache 2.0）。完整来源与许可见 [CREDITS.md](CREDITS.md)。
+品牌图标来自 Simple Icons（CC0 1.0），品牌标识归各平台所有，仅作类别示意。字体为 SIL OFL 1.1。世界点阵地图为 Public Domain。镜头卡来自 video-shotcraft（Apache 2.0）。核心代码许可见 [CREDITS.md](CREDITS.md)，内容与素材许可见 `shared/CREDITS.md`。
 
 ## 运行产物与缓存边界
 

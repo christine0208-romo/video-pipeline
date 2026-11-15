@@ -462,7 +462,7 @@ function listCreativePreviews(creativeId, variantId) {
 
 function syncPayload() {
   const registry = registryStatus(cfg);
-  const manifestFile = path.join(cfg.paths.creative, "shared", "assets.manifest.json");
+  const manifestFile = path.join(cfg.paths.shared, "assets.manifest.json");
   let assets = { manifest: false, entries: 0, added: 0, changed: 0, missing: 0 };
   if (existsSync(manifestFile)) {
     const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));

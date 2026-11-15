@@ -41,7 +41,6 @@ else bad(`Node ${process.versions.node}，需要 >= 22`);
 for (const pkg of [
   "remotion",
   "@remotion/cli",
-  "@remotion/paths",
   "react",
   "react-dom",
   "lucide-react",
@@ -93,14 +92,17 @@ const browser = findBrowser();
 if (browser) ok(`浏览器：${browser}`);
 else warn("未找到 Chrome / headless shell；设 REMOTION_BROWSER 或安装 Chrome");
 
-for (const file of ["common/vendor/fy-LICENSE.md"]) {
+for (const file of ["common/engine/README.md"]) {
   if (existsSync(path.join(ROOT, file))) ok(file);
   else bad(`缺少资源：${file}`);
 }
 
-const manifestFile = path.join(ROOT, "creative", "shared", "assets.manifest.json");
+const manifestFile = path.join(
+  cfg ? cfg.paths.shared : path.join(ROOT, "shared"),
+  "assets.manifest.json",
+);
 if (!existsSync(manifestFile)) {
-  warn("没有内容包素材清单（creative/shared/assets.manifest.json）；空核心可直接渲染");
+  warn("没有公共资源清单（shared/assets.manifest.json）；空核心可直接渲染");
 } else if (cfg) {
   const roots = cfg.assetRoots.map((root) => path.relative(ROOT, root).split(path.sep).join("/"));
   for (const root of cfg.assetRoots) {

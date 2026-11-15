@@ -25,101 +25,7 @@ const gradeFilter = (transform?: ShotTransform) => {
   return `saturate(${saturation}) contrast(${contrast}) brightness(${brightness})`;
 };
 
-const Grain: React.FC<{ amount?: number }> = ({ amount = 0.05 }) => {
-  const frame = useCurrentFrame();
-  const offset = (frame * 37) % 100;
-  return (
-    <AbsoluteFill
-      style={{
-        pointerEvents: "none",
-        opacity: amount,
-        backgroundImage:
-          "radial-gradient(rgba(255,255,255,0.9) 0.7px, transparent 0.8px)",
-        backgroundSize: "3px 3px",
-        backgroundPosition: `${offset}px ${(offset * 1.7) % 100}px`,
-      }}
-    />
-  );
-};
 
-const Scanline: React.FC = () => (
-  <AbsoluteFill
-    style={{
-      pointerEvents: "none",
-      opacity: 0.12,
-      backgroundImage:
-        "repeating-linear-gradient(0deg, rgba(255,255,255,0.5) 0 1px, transparent 1px 4px)",
-    }}
-  />
-);
-
-const Vignette: React.FC = () => (
-  <AbsoluteFill
-    style={{
-      pointerEvents: "none",
-      background:
-        "radial-gradient(120% 90% at 50% 44%, rgba(0,0,0,0) 42%, rgba(0,0,0,0.5) 100%)",
-    }}
-  />
-);
-
-const TransitionFx: React.FC<{ type?: MixShot["transitionIn"] }> = ({ type }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
-  const t = frame / fps;
-  if (type === "flash") {
-    return (
-      <AbsoluteFill
-        style={{
-          pointerEvents: "none",
-          background: "#FFFFFF",
-          opacity: Math.max(0, 1 - t / 0.14),
-        }}
-      />
-    );
-  }
-  if (type === "whip") {
-    const p = Math.max(0, 1 - t / 0.22);
-    return (
-      <AbsoluteFill
-        style={{
-          pointerEvents: "none",
-          background: "#FFFFFF",
-          opacity: p * 0.16,
-          transform: `translateX(${(1 - p) * 38}%)`,
-        }}
-      />
-    );
-  }
-  if (type === "zoom") {
-    const p = Math.max(0, 1 - t / 0.28);
-    return (
-      <AbsoluteFill
-        style={{
-          pointerEvents: "none",
-          background:
-            "radial-gradient(circle at 50% 50%, rgba(0,0,0,0) 30%, rgba(0,0,0,0.6) 100%)",
-          opacity: p,
-          transform: `scale(${1 + 0.06 * p})`,
-        }}
-      />
-    );
-  }
-  if (type === "wipe") {
-    const p = Math.max(0, 1 - t / 0.3);
-    return (
-      <AbsoluteFill
-        style={{
-          pointerEvents: "none",
-          background: "#FFFFFF",
-          opacity: p * 0.9,
-          transform: `translateX(${(1 - p) * 100}%)`,
-        }}
-      />
-    );
-  }
-  return null;
-};
 
 const TransitionClip: React.FC<{
   asset: NonNullable<MixShot["transitionAsset"]>;
@@ -212,9 +118,6 @@ const FootageView: React.FC<{ shot: MixShot }> = ({ shot }) => {
           }}
         />
       </div>
-      {transform.overlay === "grain" ? <Grain /> : null}
-      {transform.overlay === "scanline" ? <Scanline /> : null}
-      {transform.overlay === "vignette" ? <Vignette /> : null}
       {shot.overlay && overlayFrames > overlayDelay ? (
         <Sequence
           from={overlayDelay}
@@ -241,11 +144,7 @@ const FootageView: React.FC<{ shot: MixShot }> = ({ shot }) => {
           </AbsoluteFill>
         </Sequence>
       ) : null}
-      {shot.transitionAsset ? (
-        <TransitionClip asset={shot.transitionAsset} />
-      ) : (
-        <TransitionFx type={shot.transitionIn} />
-      )}
+      {shot.transitionAsset ? <TransitionClip asset={shot.transitionAsset} /> : null}
     </AbsoluteFill>
   );
 };
@@ -287,14 +186,7 @@ const GeneratedView: React.FC<{ shot: MixShot }> = ({ shot }) => {
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
         />
       </div>
-      {transform.overlay === "grain" ? <Grain /> : null}
-      {transform.overlay === "scanline" ? <Scanline /> : null}
-      {transform.overlay === "vignette" ? <Vignette /> : null}
-      {shot.transitionAsset ? (
-        <TransitionClip asset={shot.transitionAsset} />
-      ) : (
-        <TransitionFx type={shot.transitionIn} />
-      )}
+      {shot.transitionAsset ? <TransitionClip asset={shot.transitionAsset} /> : null}
     </AbsoluteFill>
   );
 };
@@ -314,11 +206,7 @@ const ImageView: React.FC<{ shot: MixShot }> = ({ shot }) => {
           transform: `scale(${1.02 + 0.06 * easeOutCubic(p)})`,
         }}
       />
-      {shot.transitionAsset ? (
-        <TransitionClip asset={shot.transitionAsset} />
-      ) : (
-        <TransitionFx type={shot.transitionIn} />
-      )}
+      {shot.transitionAsset ? <TransitionClip asset={shot.transitionAsset} /> : null}
     </AbsoluteFill>
   );
 };

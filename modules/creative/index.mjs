@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { existsSync, readdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../lib/config.mjs";
 import { readJson, writeJson } from "../lib/fsx.mjs";
@@ -14,7 +14,9 @@ const HELP = `用法：node run.mjs creative <子命令> [参数]
 子命令：
   scan [--json] [--write-registry|--check-registry]
                            列出创意工程、变体与校验结果；生成/校验引擎注册表
-  validate [--strict]      校验 creative/ 数据；--strict 把警告也视为失败
+  new <id> [--name 名称] [--template graphic] [--force]
+                           从模板新建一个最小创意工程（不改 src/，不依赖素材）
+  validate [--strict] [--json]  校验 creative/ 数据；--strict 把警告也视为失败
   plan [--creative id] [--variant id] [--item id|序号] [--json]
                            只编译并打印将生成的素材，不写文件
   build [--creative id] [--variant id] [--item id|序号] [--force] [--dry-run] [--prune]
@@ -97,8 +99,36 @@ function commandScan(cfg, { json = false, writeRegistry: write = false, checkReg
   return 0;
 }
 
-function commandValidate(cfg, { strict = false } = {}) {
+function validationPayload(result, { strict = false } = {}) {
+  return {
+    ok: result.errors.length === 0 && (!strict || result.warnings.length === 0),
+    strict,
+    engines: [...result.engines.keys()],
+    projects: result.projects.map((project) => ({
+      id: project.id,
+      version: project.version,
+      engine: project.engine,
+      status: project.status ?? "active",
+      variants: project.variants.map((variant) => ({
+        id: variant.id,
+        style: variant.style,
+        version: variant.version ?? 1,
+        status: variant.status ?? "draft",
+        items: variant.items?.length ?? 0,
+      })),
+    })),
+    errors: result.errors,
+    warnings: result.warnings,
+  };
+}
+
+function commandValidate(cfg, { strict = false, json = false } = {}) {
   const result = validateAll(cfg);
+  if (json) {
+    console.log(JSON.stringify(validationPayload(result, { strict }), null, 2));
+    if (result.errors.length) return 1;
+    return strict && result.warnings.length ? 1 : 0;
+  }
   printValidation(result);
   if (result.errors.length) {
     console.error("[creative] 校验失败");
@@ -109,6 +139,175 @@ function commandValidate(cfg, { strict = false } = {}) {
     return 1;
   }
   console.log("[creative] 校验通过");
+  return 0;
+}
+
+const KEBAB = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+const GRAPHIC_COMPONENT = [
+  'import React from "react";',
+  'import { AbsoluteFill, useCurrentFrame, useVideoConfig } from "remotion";',
+  'import type { EngineProps } from "../../../src/types";',
+  "",
+  "type GraphicProps = EngineProps & {",
+  "  hue?: number;",
+  "  scale?: number;",
+  "};",
+  "",
+  "export const Component: React.FC<GraphicProps> = ({ hue = 210, scale = 2 }) => {",
+  "  const frame = useCurrentFrame();",
+  "  const { durationInFrames } = useVideoConfig();",
+  "  const t = durationInFrames <= 1 ? 0 : frame / (durationInFrames - 1);",
+  "  const size = 120 * (1 + (scale - 1) * t);",
+  "  return (",
+  '    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center" }}>',
+  "      <div",
+  "        style={{",
+  "          width: size,",
+  "          height: size,",
+  "          borderRadius: 24,",
+  "          background: `hsl(${hue} 80% 55%)`,",
+  "          opacity: 1 - t,",
+  "        }}",
+  "      />",
+  "    </AbsoluteFill>",
+  "  );",
+  "};",
+  "",
+].join("\n");
+
+const TEMPLATES = {
+  graphic: {
+    creative: (id, name) => ({
+      version: 1,
+      id,
+      name,
+      intent: `${name}：一句话说明这条素材表达什么、用在哪个节拍。`,
+      engine: "./engine",
+      status: "active",
+      appliesTo: { beatRoles: ["hook", "turn"] },
+      params: { hue: 210, scale: 2 },
+    }),
+    engine: (id, name) => ({
+      version: 1,
+      id,
+      label: name,
+      preset: id,
+      category: "graphic",
+      layer: "overlay",
+      alpha: true,
+      loop: false,
+      complete: "clear",
+      styles: {
+        pulse: {
+          label: "脉冲",
+          code: id.toUpperCase(),
+          durationFrames: 30,
+          beatRoles: ["hook", "turn"],
+          prompt: "圆角方块从中心放大并淡出，首帧不透明、末帧完全透明",
+          params: {
+            scale: {
+              type: "number",
+              label: "最大缩放",
+              min: 1,
+              max: 3,
+              step: 0.1,
+              default: 2,
+            },
+          },
+        },
+      },
+      shared: {
+        hue: {
+          type: "number",
+          label: "色相",
+          min: 0,
+          max: 360,
+          step: 1,
+          default: 210,
+        },
+      },
+    }),
+    component: () => GRAPHIC_COMPONENT,
+    variant: () => ({
+      version: 1,
+      id: "main",
+      name: "基础",
+      style: "pulse",
+      status: "draft",
+      beatRoles: ["hook", "turn"],
+      params: {},
+      items: [
+        { id: "a", params: { hue: 210 } },
+        { id: "b", params: { hue: 330, scale: 2.6 } },
+      ],
+    }),
+    readme: (id, name) =>
+      [
+        `# ${name}`,
+        "",
+        `由 \`node run.mjs creative new ${id}\` 生成的最小工程。`,
+        "",
+        "- `creative.json`：意图、适用节拍、工程默认参数；",
+        "- `engine/engine.json`：参数 schema 与风格；",
+        "- `engine/index.tsx`：动效实现，只用 `useCurrentFrame()` / `useVideoConfig()`；",
+        "- `variants/main.json`：变体与 items，每条 item 产出一条素材。",
+        "",
+        "修改后：",
+        "",
+        "```bash",
+        `node run.mjs creative preview --creative ${id} --variant main`,
+        `node run.mjs creative build --creative ${id}`,
+        "```",
+        "",
+        "需要素材时，参数里写相对路径（如 `icons/x.svg`），由 `assetPath()` 解析为 `assets/...`；",
+        "把文件放进素材根后运行 `node tools/assets.mjs scan --apply`。",
+        "",
+      ].join("\n"),
+  },
+};
+
+function commandNew(cfg, { id, name, templateName = "graphic", force = false }) {
+  if (!id) throw new Error("new 需要工程 id：node run.mjs creative new <id>");
+  if (!KEBAB.test(id)) throw new Error(`工程 id 必须是 kebab-case：${id}`);
+  const template = TEMPLATES[templateName];
+  if (!template) {
+    throw new Error(
+      `未知模板：${templateName}（可用：${Object.keys(TEMPLATES).join(" / ")}）`,
+    );
+  }
+  const label = name ?? id;
+  const root = path.join(cfg.paths.creative, id);
+  if (existsSync(root) && !force) {
+    throw new Error(`工程已存在：${root}（确认覆盖加 --force）`);
+  }
+  const files = {
+    "creative.json": template.creative(id, label),
+    "engine/engine.json": template.engine(id, label),
+    "engine/index.tsx": template.component(),
+    "variants/main.json": template.variant(),
+    "README.md": template.readme(id, label),
+  };
+  for (const [relative, value] of Object.entries(files)) {
+    const file = path.join(root, ...relative.split("/"));
+    mkdirSync(path.dirname(file), { recursive: true });
+    const content =
+      typeof value === "string" ? value : `${JSON.stringify(value, null, 2)}\n`;
+    writeFileSync(file, content, "utf8");
+    console.log(`[creative] + ${path.relative(cfg.paths.repo, file)}`);
+  }
+
+  const result = validateAll(cfg);
+  printValidation(result);
+  if (result.errors.length) {
+    console.error("[creative] 生成的文件未通过校验，请先修正");
+    return 1;
+  }
+  writeRegistry(cfg);
+  console.log("[creative] 注册表已更新");
+  console.log("[creative] 下一步：");
+  console.log(`  node run.mjs creative preview --creative ${id} --variant main`);
+  console.log(`  node run.mjs creative build --creative ${id}`);
   return 0;
 }
 
@@ -261,7 +460,18 @@ try {
   };
 
   let code = 0;
-  if (command === "scan") code = commandScan(cfg, options);
+  if (cfg.flags.help) {
+    console.log(HELP);
+    process.exit(0);
+  }
+  if (command === "new") {
+    code = commandNew(cfg, {
+      id: cfg.positionals[1] ?? null,
+      name: cfg.flags.name ?? null,
+      templateName: cfg.flags.template ?? "graphic",
+      force: Boolean(cfg.flags.force),
+    });
+  } else if (command === "scan") code = commandScan(cfg, options);
   else if (command === "validate") code = commandValidate(cfg, options);
   else if (command === "plan") code = commandPlan(cfg, options);
   else if (command === "build") code = commandBuild(cfg, options);

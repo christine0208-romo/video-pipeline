@@ -6,7 +6,7 @@
  * 检查：
  *   1. 必需文件齐全
  *   2. src/ 确定性红线：Math.random / Date.now / new Date
- *   3. 内容包素材清单（creative/shared/assets.manifest.json）与磁盘一致
+ *   3. 公共资源清单（shared/assets.manifest.json）与磁盘一致
  *   4. package.json 依赖都在 docs/dependencies.json 登记
  *   5. public 链接是链接而不是拷贝
  *   6. 已有 EDL 通过去重校验
@@ -75,9 +75,10 @@ const required = [
   "tools/assets.mjs",
   "tools/sync.mjs",
   "tools/projects.mjs",
+  "tools/shared.mjs",
   "modules/lib/assets.mjs",
   "modules/lib/projects.mjs",
-  "docs/CREATIVE.md",
+  "docs/architecture/CREATIVE.md",
   "modules/quality/index.mjs",
   "modules/quality/analyze.mjs",
   "modules/quality/similarity.mjs",
@@ -92,19 +93,20 @@ const required = [
   "tools/reindex.mjs",
   "tools/reconcile-runtime.mjs",
   "tools/migrate-public.mjs",
-  "docs/RULES.md",
-  "docs/LESSONS.md",
-  "docs/WORKFLOW.md",
-  "docs/MODULES.md",
-  "docs/AUDIO.md",
-  "docs/FISSION.md",
-  "docs/QUALITY.md",
-  "docs/ASSETS.md",
-  "docs/WORKBENCH.md",
-  "docs/DEPENDENCIES.md",
-  "docs/DECISIONS.md",
-  "docs/TROUBLESHOOTING.md",
-  "docs/ONBOARDING.md",
+  "docs/reference/RULES.md",
+  "docs/architecture/SHARED.md",
+  "docs/records/LESSONS.md",
+  "docs/operations/WORKFLOW.md",
+  "docs/architecture/ARCHITECTURE.md",
+  "docs/architecture/AUDIO.md",
+  "docs/operations/FISSION.md",
+  "docs/operations/QUALITY.md",
+  "docs/architecture/ASSETS.md",
+  "docs/operations/WORKBENCH.md",
+  "docs/operations/DEPENDENCIES.md",
+  "docs/records/DECISIONS.md",
+  "docs/operations/TROUBLESHOOTING.md",
+  "docs/README.md",
   "docs/dependencies.json",
 ];
 for (const file of required) {
@@ -130,6 +132,18 @@ if (syncCheck.status !== 0) {
   problems.push(`内容包未同步：\n${(syncCheck.stdout ?? "") + (syncCheck.stderr ?? "")}`);
 }
 
+// 1.2 公共资源层结构校验（存在 shared/ 时才检查）
+if (existsSync(cfg.paths.shared)) {
+  const sharedCheck = spawnSync(
+    process.execPath,
+    [path.join(ROOT, "run.mjs"), "shared", "validate"],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  if (sharedCheck.status !== 0) {
+    problems.push(`公共资源层校验失败：\n${(sharedCheck.stdout ?? "") + (sharedCheck.stderr ?? "")}`);
+  }
+}
+
 // 2. 确定性红线（src 与 creative 引擎实现）
 const deterministic = [/Math\.random\s*\(/, /Date\.now\s*\(/, /new Date\s*\(/];
 for (const rootDir of [path.join(ROOT, "src"), path.join(ROOT, "creative")]) {
@@ -145,7 +159,7 @@ for (const rootDir of [path.join(ROOT, "src"), path.join(ROOT, "creative")]) {
 }
 
 // 3. 内容包素材清单（没有内容包时跳过）
-const manifestFile = path.join(ROOT, "creative", "shared", "assets.manifest.json");
+const manifestFile = path.join(cfg.paths.shared, "assets.manifest.json");
 if (existsSync(manifestFile)) {
   const assetsCheck = spawnSync(
     process.execPath,

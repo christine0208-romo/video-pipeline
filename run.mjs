@@ -31,6 +31,7 @@ const TOOLS = {
   runtime: "tools/reconcile-runtime.mjs",
   sync: "tools/sync.mjs",
   projects: "tools/projects.mjs",
+  shared: "tools/shared.mjs",
 };
 
 const argv = process.argv.slice(2);
@@ -48,14 +49,15 @@ function ensureDeps() {
 
 function runStage(name, args) {
   const script = path.join(ROOT, STAGES[name]);
-  console.log(`\n▶ ${name}`);
+  // 进度信息走 stderr，保证 --json 的 stdout 只有数据。
+  console.error(`\n▶ ${name}`);
   const started = Date.now();
   const result = spawnSync(process.execPath, [script, ...args], {
     cwd: REPO,
     stdio: "inherit",
   });
   if (result.status !== 0) process.exit(result.status ?? 1);
-  console.log(`✓ ${name} ${((Date.now() - started) / 1000).toFixed(1)}s`);
+  console.error(`✓ ${name} ${((Date.now() - started) / 1000).toFixed(1)}s`);
 }
 
 function help() {
@@ -76,6 +78,7 @@ stage:
   runtime    隔离/清理检查、下载、public 备份残留
   sync       扫描创意包与素材清单：报告 / --apply 登记 / --check 只检查
   projects   扫描 projects/*/project.json，校验项目包
+  shared     公共资源层：init 生成结构 / status 报告 / validate 校验
 
 常用参数:
   --config <file>          配置文件，默认 config/pipeline.json

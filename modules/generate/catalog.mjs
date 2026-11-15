@@ -255,11 +255,8 @@ function propsFor(cfg, id, ext) {
   return existsSync(file) ? readJson(file, null) : null;
 }
 
-function deriveLayer(preset, props = {}) {
-  if (props.layer) return props.layer;
-  if (preset === "transition-atom") return "transition";
-  if (preset === "text-atom" || preset === "particle-atom") return "overlay";
-  return "scene";
+function deriveLayer(presetInfo, props = {}) {
+  return props.layer ?? presetInfo?.layer ?? "scene";
 }
 
 function preservedFields(oldEntry) {
@@ -318,7 +315,7 @@ export function reindexCatalog(cfg, { apply = false } = {}) {
     const propsData = propsFor(cfg, item.id, "mp4") ?? propsFor(cfg, item.id, "webm");
     const preset = old?.preset ?? propsData?.preset ?? null;
     const presetInfo = preset ? presetMeta.get(preset) : null;
-    const layer = old?.layer ?? deriveLayer(preset, propsData);
+    const layer = old?.layer ?? deriveLayer(presetInfo, propsData);
     const durationInFrames =
       old?.durationInFrames ??
       propsData?.durationInFrames ??

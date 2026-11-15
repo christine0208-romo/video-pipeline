@@ -1,6 +1,6 @@
 # CREDITS
 
-核心框架使用的第三方代码与工具链。**创意内容与素材的许可见 `creative/shared/CREDITS.md`**。
+核心框架使用的第三方代码与工具链。**创意内容与素材的许可见 `shared/CREDITS.md`**。
 
 ## 通用图标
 
@@ -10,10 +10,10 @@
 
 ## 动效与 Canvas 实现
 
-- `common/vendor/fy-implementations/`：来自 fy-code-animation
-  - 许可：见 `common/vendor/fy-LICENSE.md` 与 `common/vendor/fy-LICENSES/`
-  - 免费分享，不得付费转售或重新打包收费。
-- `common/vendor/canvas-engine/`：本工作区自写（claude_04），随本工作区使用。
+- `common/engine` 的 `motion-core.mjs`、`time.ts`、`fonts.ts` 源自 fy-code-animation（俯仰观照），上游注明为独立编写
+  - 许可：作者免费分享；不得包装成付费课程 / 付费 skills / 收费资料出售
+- 其余 `common/engine` 文件为本工作区自写
+- Canvas 绘制引擎（项目背景、品牌印章、平台 rail 等）属于内容，见 `shared/CREDITS.md`
 
 ## 框架
 

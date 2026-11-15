@@ -18,16 +18,12 @@ const FOCUSES = [
 ];
 const ZOOMS = [1.0, 1.05, 1.12, 1.2, 1.28];
 const SPEEDS = [0.96, 1, 1.04];
-const GRADES = [
-  {},
+const GRADES = [  {},
   { saturation: 1.08, contrast: 1.05 },
   { saturation: 0.92, contrast: 1.1 },
   { brightness: 0.92, saturation: 1.04 },
   { brightness: 1.04, contrast: 0.98 },
 ];
-const OVERLAYS = ["none", "none", "grain", "scanline", "vignette"];
-const TRANSITIONS = ["cut", "cut", "cut", "flash", "whip", "zoom", "wipe"];
-
 const round3 = (value) => Math.round(value * 1000) / 1000;
 
 const isApproved = (entry, cfg) =>
@@ -125,7 +121,7 @@ function signatureFor(assetId, start, transform, speed) {
       transform.zoom ?? ""
     }|${transform.motion ?? ""}|${(transform.motionAmount ?? 0).toFixed(4)}|${speed}|${JSON.stringify(
       transform.grade ?? {},
-    )}|${transform.overlay ?? ""}`,
+    )}`,
     12,
   );
 }
@@ -150,7 +146,6 @@ function baseTransform(rnd, asset) {
     motion,
     motionAmount: 0.04 + rnd() * 0.05,
     grade: pick(GRADES, rnd),
-    overlay: pick(OVERLAYS, rnd),
   };
 }
 
@@ -294,7 +289,7 @@ function pickGeneratedShot(state, shotDur, rnd, role) {
     state.creativeCounts[capKey] = (state.creativeCounts[capKey] ?? 0) + 1;
   }
   const transform = baseTransform(rnd);
-  if (entry.engine === "camera") {
+  if (entry.category === "camera") {
     transform.motion = "still";
     transform.zoom = 1;
     transform.motionAmount = 0;
@@ -353,13 +348,6 @@ function pickTransitionAsset(state, shotDur, role, rnd) {
     src: entry.publicWebm,
     dur: Math.min(Number(shotDur), Number(entry.duration)),
   };
-}
-
-function pickTransition(role, index, rnd) {
-  if (index === 0) return "cut";
-  if (role === "turn") return rnd() < 0.5 ? "whip" : "flash";
-  if (role === "hook") return "zoom";
-  return pick(TRANSITIONS, rnd);
 }
 
 const DEFAULT_BEATS = [
@@ -600,8 +588,7 @@ function resolveMusic(cfg) {
   if (!config) return null;
 
   const indexFile = path.join(
-    cfg.paths.creative,
-    "shared",
+    cfg.paths.shared,
     "audio",
     "music.index.json",
   );
@@ -635,7 +622,7 @@ function resolveMusic(cfg) {
         const direct = path.resolve(cfg.paths.repo, value);
         file = existsSync(direct)
           ? direct
-          : path.resolve(cfg.paths.repo, "common", "assets", "music", value);
+          : findAssetFile(cfg.assetRoots, `music/${value}`);
       }
     }
   }
@@ -680,8 +667,7 @@ function buildSfx(cfg, beats, shots) {
   if (config.enabled === false) return [];
 
   const indexFile = path.join(
-    cfg.paths.creative,
-    "shared",
+    cfg.paths.shared,
     "audio",
     "sfx.index.json",
   );
@@ -724,50 +710,28 @@ function buildSfx(cfg, beats, shots) {
 
   for (const beat of beats) {
     if (beat.role === "hook") {
-      add("impact-hard", beat.at, 0.7);
-      add("sub-drop", beat.at, 0.6);
+      add("impact", beat.at, 0.7);
+      add("sub", beat.at, 0.6);
     }
     if (beat.role === "turn") {
-      add("transition-riser", Math.max(0, beat.at - 0.45), 0.8);
-      add("impact-soft", beat.at, 0.6);
-      add("sub-drop", beat.at, 0.5);
+      add("riser", Math.max(0, beat.at - 0.45), 0.8);
+      add("impact", beat.at, 0.6);
+      add("sub", beat.at, 0.5);
     }
     if (beat.role === "close") {
-      add("impact-soft", beat.at, 0.5);
-      add("sub-drop", beat.at, 0.35);
+      add("impact", beat.at, 0.5);
+      add("sub", beat.at, 0.35);
     }
   }
 
   shots.forEach((shot, shotIndex) => {
-    if (shot.transitionAsset) {
-      const id = shot.transitionAsset.assetId;
-      const sfxId = id.includes("glitch")
-        ? "transition-glitch"
-        : id.includes("light-leak")
-          ? "sparkle"
-          : id.includes("wipe")
-            ? "transition-whoosh"
-            : "impact-soft";
-      add(sfxId, shot.at, 0.8, shotIndex);
-    }
-    if (shot.overlay) {
-      const delay = shot.transitionAsset?.dur ?? 0;
-      const id = shot.overlay.assetId;
-      if (id.startsWith("text-typewriter")) {
-        for (const offset of [0, 0.06, 0.12]) {
-          add("ui-tap", shot.at + delay + offset, 0.7, shotIndex);
-        }
-      } else if (id.startsWith("text-char-rise")) {
-        add("ui-tap", shot.at + delay, 0.6, shotIndex);
-      } else if (id.startsWith("text-keyword")) {
-        add("ui-click", shot.at + delay + 0.4, 0.8, shotIndex);
-      } else if (id.startsWith("text-count")) {
-        add("ui-tap", shot.at + delay, 0.6, shotIndex);
-        add("sparkle", shot.at + delay + 1.0, 0.7, shotIndex);
-      }
-    }
-    if (shot.kind === "generated" && shot.assetId.startsWith("ui-mock")) {
-      add("ui-confirm", shot.at + 0.2, 0.8, shotIndex);
+    const at = shot.at + (shot.transitionAsset?.dur ?? 0);
+    if (shot.transitionAsset) add("whoosh", shot.at, 0.8, shotIndex);
+    if (shot.overlay?.category === "text") add("tap", at, 0.6, shotIndex);
+    else if (shot.overlay?.category === "icon") add("click", at, 0.7, shotIndex);
+    else if (shot.overlay?.category === "graphic") add("sparkle", at, 0.6, shotIndex);
+    if (shot.kind === "generated" && shot.category === "ui") {
+      add("confirm", shot.at + 0.2, 0.8, shotIndex);
     }
   });
 
@@ -874,6 +838,7 @@ export function planOutput(cfg, { index, pool, catalog, registry }) {
                 entry.category === "particle" || entry.category === "icon"
                   ? "screen"
                   : undefined,
+              category: entry.category,
             };
             state.usedOverlay.add(entry.id);
             state.lastOverlayId = entry.id;
@@ -891,7 +856,6 @@ export function planOutput(cfg, { index, pool, catalog, registry }) {
           speed,
           transform,
           overlay,
-          transitionIn: pickTransition(role, globalIndex, rnd),
           signature,
           relaxed,
         };
@@ -908,11 +872,11 @@ export function planOutput(cfg, { index, pool, catalog, registry }) {
         shot = {
           kind: "generated",
           assetId: generated.entry.id,
+          category: generated.entry.category,
           src: generated.entry.publicMp4,
           at: 0,
           dur: shotDur,
           transform,
-          transitionIn: pickTransition(role, globalIndex, rnd),
           signature: generated.signature,
         };
       }
@@ -927,7 +891,6 @@ export function planOutput(cfg, { index, pool, catalog, registry }) {
       const transitionAsset = pickTransitionAsset(state, shot.dur, role, rnd);
       if (transitionAsset) {
         shot.transitionAsset = transitionAsset;
-        shot.transitionIn = "cut";
       }
     }
     flat.push(shot);

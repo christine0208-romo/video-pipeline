@@ -14,6 +14,9 @@
     "scan": "node run.mjs scan",
     "creative": "node run.mjs creative",
     "creative:init": "node tools/init-creative.mjs",
+    "shared:init": "node run.mjs shared init",
+    "shared:status": "node run.mjs shared status",
+    "shared:validate": "node run.mjs shared validate",
     "sync": "node run.mjs sync",
     "assets:check": "node tools/assets.mjs check",
     "assets:verify": "node tools/assets.mjs check --verify",
@@ -35,7 +38,6 @@
   },
   "dependencies": {
     "@remotion/cli": "4.0.539",
-    "@remotion/paths": "4.0.539",
     "lucide-react": "1.69.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",

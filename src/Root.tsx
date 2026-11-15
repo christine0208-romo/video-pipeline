@@ -4,15 +4,18 @@ import { Composition } from "remotion";
 import { GeneratedAsset } from "./GeneratedAsset";
 import { MixVideo } from "./MixVideo";
 import { PRESET_IDS } from "../creative/registry";
+import pipelineConfig from "../config/pipeline.json";
 import type { AssetProps } from "./types";
 import type { MixEdl } from "./mix/types";
+
+const SPEC = pipelineConfig.spec;
 
 const EMPTY_EDL: MixEdl = {
   version: 1,
   id: "empty",
-  width: 1080,
-  height: 1920,
-  fps: 30,
+  width: SPEC.width,
+  height: SPEC.height,
+  fps: SPEC.fps,
   durationInFrames: 1,
   stills: [],
   audio: null,
@@ -41,9 +44,9 @@ export const RemotionRoot: React.FC = () => (
       id="PipelineAsset"
       component={GeneratedAsset}
       durationInFrames={90}
-      fps={30}
-      width={1080}
-      height={1920}
+      fps={SPEC.fps}
+      width={SPEC.width}
+      height={SPEC.height}
       defaultProps={{
         preset: PRESET_IDS[0] ?? "",
         props: {},
@@ -56,9 +59,9 @@ export const RemotionRoot: React.FC = () => (
       id="MixVideo"
       component={MixVideo}
       durationInFrames={1}
-      fps={30}
-      width={1080}
-      height={1920}
+      fps={SPEC.fps}
+      width={SPEC.width}
+      height={SPEC.height}
       defaultProps={{ edl: EMPTY_EDL }}
       calculateMetadata={mixMetadata}
     />

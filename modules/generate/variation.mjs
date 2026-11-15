@@ -10,11 +10,11 @@ function load(file, fallback) {
   return CACHE.get(file);
 }
 
-const creativeRoot = (cfg) =>
-  cfg?.paths?.creative ?? path.join(PIPELINE_ROOT, "creative");
+const sharedRoot = (cfg) =>
+  cfg?.paths?.shared ?? path.join(PIPELINE_ROOT, "shared");
 
 export function readVariation(cfg = null) {
-  return load(path.join(creativeRoot(cfg), "shared", "variation.json"), {
+  return load(path.join(sharedRoot(cfg), "variation.json"), {
     palettes: [],
     text: {},
     particle: {},
@@ -68,7 +68,7 @@ const transitionProfile = (transition, rnd) => ({
 export function pickVariation(workSeed, cfg = null) {
   const variation = readVariation(cfg);
   const rnd = makeRng(workSeed);
-  const iconData = load(path.join(creativeRoot(cfg), "shared", "icons.json"), {});
+  const iconData = load(path.join(sharedRoot(cfg), "code", "icons.json"), {});
   const iconPoolName = pick(variation.camera?.iconPools ?? ["social"], rnd);
   const iconPool = iconData[iconPoolName] ?? iconData.social ?? [];
   const icons = shuffle(iconPool, rnd).slice(

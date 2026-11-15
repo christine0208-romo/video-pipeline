@@ -1,5 +1,3 @@
-export type TransitionIn = "cut" | "flash" | "whip" | "zoom" | "wipe";
-
 export type ShotGrade = {
   saturation?: number;
   contrast?: number;
@@ -12,7 +10,6 @@ export type ShotTransform = {
   motion?: "push" | "pull" | "panLeft" | "panRight" | "panUp" | "panDown" | "still";
   motionAmount?: number;
   grade?: ShotGrade;
-  overlay?: "none" | "grain" | "scanline" | "vignette";
 };
 
 export type MixAudioMusic = {
@@ -50,6 +47,7 @@ export type MixAudio = {
 export type MixShot = {
   kind: "footage" | "generated" | "image";
   assetId: string;
+  category?: string;
   src: string;
   sourceFps?: number;
   in?: number;
@@ -57,9 +55,14 @@ export type MixShot = {
   dur: number;
   speed?: number;
   transform?: ShotTransform;
-  overlay?: { assetId: string; src: string; dur: number; blend?: "screen" | "normal" };
+  overlay?: {
+    assetId: string;
+    src: string;
+    dur: number;
+    blend?: "screen" | "normal";
+    category?: string;
+  };
   transitionAsset?: { assetId: string; src: string; dur: number };
-  transitionIn?: TransitionIn;
   signature?: string;
 };
 

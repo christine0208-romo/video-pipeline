@@ -188,6 +188,7 @@ export function loadConfig(argv = process.argv.slice(2)) {
     temp: path.resolve(PIPELINE_ROOT, runtime.tempDir ?? ".cache/video-pipeline/tmp"),
     release: path.resolve(PIPELINE_ROOT, runtime.releaseDir ?? "release"),
     creative: path.resolve(PIPELINE_ROOT, cfg.creative?.root ?? "creative"),
+    shared: path.resolve(PIPELINE_ROOT, cfg.shared?.root ?? "shared"),
   };
   cfg.footage.roots = cfg.footage.roots.map((root) =>
     path.isAbsolute(root) ? path.normalize(root) : path.resolve(REPO_ROOT, root),

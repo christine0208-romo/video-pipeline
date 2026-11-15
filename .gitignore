@@ -6,6 +6,8 @@
 /release/
 /projects/
 /creative/
+# 公共资源与预设（内容包；结构与规范见 docs/SHARED.md，系统命令 node run.mjs shared）
+/shared/
 # 素材库：内容部署，可配置多根（config/pipeline.json assets.roots）
 /assets/
 /common/assets/

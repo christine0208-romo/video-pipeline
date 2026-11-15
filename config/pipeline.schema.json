@@ -113,6 +113,14 @@
       }
     },
     "fission": {"type": "object"},
+    "shared": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root"],
+      "properties": {
+        "root": {"type": "string", "minLength": 1}
+      }
+    },
     "creative": {
       "type": "object",
       "additionalProperties": false,

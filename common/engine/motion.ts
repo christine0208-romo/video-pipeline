@@ -1,1 +1,1 @@
-export * from "../vendor/fy-implementations/motion-core.mjs";
+export * from "./motion-core.mjs";
