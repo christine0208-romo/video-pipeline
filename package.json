@@ -8,10 +8,17 @@
     "node": ">=22"
   },
   "scripts": {
+    "postinstall": "node tools/init-creative.mjs",
     "doctor": "node tools/doctor.mjs",
     "all": "node run.mjs all",
     "scan": "node run.mjs scan",
-    "generate": "node run.mjs generate",
+    "creative": "node run.mjs creative",
+    "creative:init": "node tools/init-creative.mjs",
+    "sync": "node run.mjs sync",
+    "assets:check": "node tools/assets.mjs check",
+    "assets:verify": "node tools/assets.mjs check --verify",
+    "assets:scan": "node tools/assets.mjs scan",
+    "assets:fetch": "node tools/assets.mjs fetch",
     "quality": "node run.mjs quality",
     "mix": "node run.mjs mix",
     "fission": "node run.mjs fission",

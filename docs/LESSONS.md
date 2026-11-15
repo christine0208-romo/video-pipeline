@@ -284,3 +284,144 @@
 - 原因：为压到 20s 过度加速；图标只做了发光没有保留平台识别色；片尾是生成文字卡而不是实拍。
 - 修法：TTS 降到 +60%（29.756s，成片 33.56s）；图标用平台品牌色/Instagram 渐变；片尾改用压暗的 SIM 卡实拍 + CTA 文字叠加。
 - 预防：节奏优先可懂度，时长目标不是硬约束；辅助图标保留品牌识别色；片尾优先使用真实产品画面而不是纯色卡。
+
+## 2026-11-14 · hidden 属性被自定义 display 覆盖
+
+- 现象：工作台没有运行任务时，侧栏的任务徽标仍然显示「任务 / 运行中」。
+- 原因：`.job-badge { display: flex }` 是作者样式，优先级高于浏览器默认的 `[hidden] { display: none }`，`element.hidden = true` 只加属性不改计算样式。
+- 修法：样式表加全局 `[hidden] { display: none !important; }`。
+- 预防：任何自定义 `display` 的组件用 `hidden` 控制显隐时，必须同时提供 `[hidden]` 规则，或改用显式 class 切换。
+
+## 2026-11-14 · 运行产物里的相对路径不能按 cwd 解析
+
+- 现象：工作台实拍页没有缩略图，名称为空；`/api/library` 返回的 `thumbs` 全是 `[]`。
+- 原因：`library.json` 的 `thumbs` 是相对 `data/` 的路径（`thumbs/xxx.jpg`），`mediaUrl` 用 `path.resolve(file)` 按服务进程 cwd 解析到仓库根，判断不在 `data/` 或 `out/` 内就返回 null；`name` 字段在 library 里根本不存在（实际是 `relPath`）。
+- 修法：`listLibrary` 用 `path.join(DATA, thumb)` 解析相对缩略图，`name` 回退 `relPath`。
+- 预防：索引里的相对路径必须相对其所属根目录解析；API 层显式声明相对根，不要依赖进程 cwd。
+
+## 2026-11-14 · 宽泛的 public/ 规则把 workbench/public 也忽略了
+
+- 现象：补回 `workbench/public/{index.html,app.js,styles.css}` 后 `git status` 不显示这些文件；初始化提交里只有 `workbench/server.mjs`，而 `npm run check` 要求前端三个文件存在。
+- 原因：`.gitignore` 写的是 `public/`（没有前导斜杠），gitignore 会匹配任意层级的同名目录，`workbench/public` 被一并忽略，`git add` 静默跳过。
+- 修法：根目录忽略项全部加前导 `/`（`/public/`、`/data/`、`/out/` 等），使 `workbench/public` 可以入库。
+- 预防：忽略运行产物时锚定仓库根；新增必需文件后用 `git check-ignore -v <path>` 确认没有被忽略。
+
+## 2026-11-14 · 保存创意变体时把 loader 注入的字段写回了 JSON
+
+- 现象：工作台保存 `char-rise` 后，变体文件多出 `"file": "text-display/variants/char-rise.json"` 和一个显式的 `durationFrames`。
+- 原因：服务端用 `{...variant}` 作为待写对象，而 `readCreativeProjects` 会给变体附加 `file` 等读取期字段；保存时没有剥离。
+- 修法：写入前 `delete next.file / next.dir`，只持久化允许的编辑字段。
+- 预防：数据层（loader）附加的只读字段与可写字段分开命名或在 API 层显式挑选，不要整对象回写。
+
+## 2026-11-14 · textarea 没有继承 input 的深色样式
+
+- 现象：创意页的文案输入框是白底白字，几乎看不清。
+- 原因：样式只给 `input.field` / `select.field` 设了背景与文字色，`textarea` 仍是浏览器默认样式。
+- 修法：补 `textarea.field` 的背景、边框、文字色与 resize。
+- 预防：自定义表单控件时把 input / select / textarea 一起纳入基础样式，不要逐个补。
+
+## 2026-11-14 · 转场故障切的末帧残留
+
+- 现象：`transitions-glitch` 两条素材被质量检查标 `end-residue`（alphaEnd=1）。
+- 原因：glitch 里的红/青 RGB 叠加层是常亮 `rgba(...,0.22)`，没有跟随 `fade` 衰减；最后一帧切片位移归零，但两层色仍可见。
+- 修法：给两层 RGB 叠加加 `opacity: fade`，末帧回到透明。
+- 预防：转场类引擎的每一层（底色、色散、切片、光斑）都必须乘同一个 `fade`；质量检查的 `complete: clear` 应保持开启。
+
+## 2026-11-14 · force 重建后质量缓存没有失效
+
+- 现象：`creative build --transitions --force` 后重渲了 glitch，但质量报告仍保留旧的 `end-residue`；本次质量分析数为 0。
+- 原因：`syncCatalog` 对同 ID 条目无条件保留旧 `quality`，覆盖了本次新建条目的空质量。
+- 修法：本次 `renderAsset` 返回非 0 的条目先置 `quality = null`；合并时 `null` 不继承旧值，交给 `analyzeEntries` 重算。
+- 预防：任何“同 ID 覆盖重渲”的流程都要显式作废旧质量数据；缓存命中与重渲要走不同分支。
+
+## 2026-11-15 · 清空生成产物必须连带 EDL 与签名
+
+- 现象：只删除 catalog 与 out/assets 后，`node run.mjs check` 仍会因为旧 EDL 引用已删除素材而失败。
+- 原因：EDL 与 `signatures.json` 是运行产物，但记录了已不存在的 assetId 与源区间；清理没有覆盖 `data/edl` 与 `data/works`。
+- 修法：`creative reset` 把 `data/edl`、`data/works` 纳入清理范围；有 EDL 时默认拒绝 apply，`--force` 才执行。
+- 预防：任何“清空生成素材”的操作都要同时处理所有引用它的派生数据；成片文件可保留，但 EDL 必须一起清。
+
+## 2026-11-15 · 删除旧生成阶段前先迁移动词
+
+- 现象：旧 `generate` 同时承担生成、审核、share 与 clean-work；直接删模块会让工作台资产操作失效。
+- 原因：CLI 阶段名与操作语义耦合，删除生成入口时没有先给审核/分享/清理找新家。
+- 修法：先把 `review.mjs` 移到 `modules/creative/`，新增 `creative review/share/clean-work/list-works`，再把工作台 `/api/action` 映射到 creative，最后删除 `generate`。
+- 预防：删除一个 stage 前先列出它承担的所有动词，逐个迁移并验证工作台入口。
+
+## 2026-11-15 · 引擎实现不能靠运行时扫目录加载
+
+- 现象：把引擎实现放进 `creative/engines/<id>/index.tsx` 后，Remotion 渲染需要知道组件，但 CLI 扫描目录得到的组件无法直接交给静态打包器。
+- 原因：Remotion 的入口是静态 import 图，动态路径不会被提前打包。
+- 修法：新增 `modules/creative/registry.mjs`，扫描引擎目录后生成 `creative/registry.ts`，用静态 import 注册所有组件；`scan --write-registry` 生成、`--check-registry` 校验最新。
+- 预防：任何“按目录发现组件”的机制都必须落成生成式静态注册表；新增引擎后记得重新生成。
+
+## 2026-11-15 · 本地引擎的 preset 元数据要从 engine.json 合成
+
+- 现象：本地引擎工程 `engine: "./engine"` 在 plan 时报“引用了未知 preset：local-smoke”。
+- 原因：compile 仍从 `presets.json` 查 `preset` 元数据，而本地引擎不在那里。
+- 修法：`presetMeta` 改为直接从 engine 对象合成（`supportsAlpha/description/category/loop/complete`），共享引擎与本地引擎走同一路径。
+- 预防：元数据只保留一个来源（engine.json）；不要在下游继续读旧的 preset 清单。
+
+## 2026-11-15 · 每次保存都升版会让缓存失效
+
+- 现象：在工作台点“保存并构建”，即使只改了状态或没改内容，变体下所有素材都会换新 ID，看起来像全量新增。
+- 原因：保存接口无条件把 `variant.version` +1，而版本参与了素材 ID 的 hash。
+- 修法：保存时比较 `style / params / items / durationFrames / loop`，只有渲染相关内容变化才升版；状态、名称变化不升版。
+- 预防：版本号必须只在影响产物的字段变化时递增；否则会不断制造孤儿素材并破坏缓存。
+
+## 2026-11-15 · 上游快照里会混入创意实现
+
+- 现象：`common/components/reel/v2/packs` 带着 5 套完整导演方案，看起来像框架组件，实际是具体创意实现，且在本 pipeline 中零引用。
+- 原因：`common/` 是从上游工作区整目录搬来的快照，上游的演示/创意内容没有按“核心/内容”分层。
+- 修法：删除未引用的 packs/Reel；把仍被 ui-mock 使用的 GeneratedClip 移入 ui-mock 引擎；core 只保留 engine/vendor/assets/shots。
+- 预防：升级 common 时先跑引用检查；带具体画面、版式或叙事的文件默认视为内容，不放进 core。
+
+## 2026-11-15 · 加入 gitignore 不会自动取消已跟踪文件
+
+- 现象：把 `/common/assets/*` 加入 gitignore 后，字体、图标、音乐仍是 tracked 状态，`git status` 不会忽略它们。
+- 原因：gitignore 只影响未跟踪文件；已跟踪文件需要先从索引移除。
+- 修法：`git rm -r --cached common/assets`，再用 `git add -f` 保留 REGISTRY 与 sfx/music 索引。
+- 预防：迁移“运行素材/内容目录”出仓库时，gitignore 与 `git rm --cached` 必须一起做。
+
+## 2026-11-15 · 创意共用原语要作为一组迁移
+
+- 现象：把 palette/parts/backdrop 单独移到 `creative/shared` 后，parts 仍引用旧的 `../platform`，palette 仍引用 `./types`，typecheck 立刻失败。
+- 原因：这些文件之间有相对导入，且迁移后目录深度变了。
+- 修法：按依赖组整体迁移，并统一改成 `../../src/...` 或同目录 `./...`；迁移后立即 typecheck。
+- 预防：移动一组源文件时，先列出相互 import，再一次性改路径，不要逐个文件搬。
+
+## 2026-11-15 · 注册表校验失败时 scan 不会写文件
+
+- 现象：新增一个临时引擎后跑 `creative scan --write-registry`，随后 `creative preview` 报「未知 preset：probe-atom」，但注册表文件看起来“生成成功了”。
+- 原因：本次 scan 因工程缺少变体而校验失败，流程在写注册表之前就中止；`--write-registry` 只是附加动作，不保证在校验失败时仍写入。
+- 修法：先补变体让 `creative validate --strict` 通过，再重跑 `scan --write-registry`；`sync --apply` 也是先算注册表再写，校验失败同样不写。
+- 预防：预览报“未知 preset”时先看 `creative scan` 的完整输出，不要只看 `tail`；新增引擎后按 validate → scan → preview 的顺序走。
+
+## 2026-11-15 · 泛化 props 后组件类型的可赋值方向只有一边
+
+- 现象：`EngineProps` 带 `[key: string]: unknown` 索引签名后，把 `React.FC<TextProps>` 直接赋给 `React.FC<EngineProps>` 会报错。
+- 原因：函数参数是逆变的；`EngineProps` 可赋给 `TextProps`（字段都可选），反过来不行，所以 `FC<EngineProps>` 可以赋给 `FC<TextProps>`，反向必须断言。
+- 修法：注册表生成时在组件赋值处加 `as React.FC<EngineProps>`；引擎内部仍用精确类型，只在边界断言一次。
+- 预防：内容侧保留精确 props，core 只做透传；不要在 core 里为了“省一次断言”把引擎字段加回 `src/types.ts`。
+
+## 2026-11-15 · 素材索引移动会被 scan 当成新增文件
+
+- 现象：把 `common/assets/{sfx,music}/index.json` 移到 `creative/shared/audio/` 之前先跑 scan，报告“新增 music/index.json、sfx/index.json”。
+- 原因：scan 按 `common/assets` 的实际文件与清单比对，索引文件当时还在落点目录里，而清单里没有它们。
+- 修法：先移动文件再 scan；确实需要清理孤儿条目时用 `scan --apply --prune`，它只删清单条目、不删文件。
+- 预防：迁移“清单/索引类”文件时，移动、改读取路径、再 scan 这三步放在同一轮里完成。
+
+## 2026-11-15 · 素材库多根合并改变了 public 的链接形态
+
+- 现象：把素材根从单目录改成多根合并后，`public/assets` 从一条 junction 变成实体目录（里面每个顶层项各是一条链接），`npm run check` 立刻报“public/assets 不是链接（疑似拷贝）”。
+- 原因：校验脚本只认“public 顶层是符号链接”，而多根合并必须是实体目录 + 子项链接；Windows 上文件级符号链接需要额外权限，不适合逐文件建链。
+- 修法：`check`/`doctor` 对 `public/assets` 单独判定——允许实体目录，但要求每个顶层项都是链接；顶层文件用硬链接（同盘）或复制兜底。
+- 预防：改 `public/` 结构时同步改 `check` 与 `doctor` 的判定，并跑一次 `npm run check`；合并规则（同名前者优先）要写进文档与告警。
+- 补充（同日）：最终实现把 `public/assets` 做成“能整目录链接就链接、冲突目录递归合并”的树，`check`/`doctor` 已放宽为“实体目录也合法”，上面“每个顶层项必须是链接”的旧判定已不适用。
+
+## 2026-11-15 · 已删除概念的字段不能继续参与行为判断
+
+- 现象：`planner` 的 overlay blend 仍在判断 `recipeId.startsWith("particle-")`，而新 catalog 的 `recipeId` 恒为 `null`，粒子/霓虹叠层实际上不再走 `screen`，且没有任何报错。
+- 原因：功能迁移只改了数据来源，消费端保留了旧字段判断，空值让分支静默失效。
+- 修法：改为按通用的 `category` 判断；并彻底移除 `recipeId` 字段与 `maxPerRecipe` 命名。
+- 预防：删除或替换字段时用 `grep` 找全部消费者；迁移后用 dry-run 检查产物字段（如 EDL 的 `blend`），而不是只看命令是否成功。

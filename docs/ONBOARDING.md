@@ -16,7 +16,7 @@ npm run doctor
 
 - `footage.roots`：实拍素材在哪；
 - `spec`：1080×1920 / 30fps；
-- `generate.presets`：启用哪些生成素材；
+- `creative`：创意工程目录、构建格式与裂变素材池；
 - `mix`：成片时长、条数、seed、节拍。
 
 ## 3. 扫描（2 分钟）
@@ -31,24 +31,24 @@ node run.mjs scan
 - `duration/width/height/fps`：元数据；
 - `crop`：有效画面区域；
 - `scenes[]`：可用镜头区间；
-- `tags`：自动/人工标签；
 - `thumbs`：缩略图路径。
 
-再看 `data/thumbs/*-sheet.jpg`，确认画面内容与标签一致。
+再看 `data/thumbs/*-sheet.jpg`，确认画面内容与缩略图一致。
 
-## 4. 生成一类素材（3 分钟）
+## 4. 构建一类创意素材（3 分钟）
 
 ```bash
-node run.mjs generate --only platform-orbit --variants 1
+node run.mjs creative scan
+node run.mjs creative build --creative scene-orbit
 ```
 
 看：
 
-- `out/assets/platform-orbit-*.mp4`
-- `out/assets/platform-orbit-*.webm`
-- `out/stills/assets/platform-orbit-*.png`
+- `out/assets/scene-orbit-*.mp4`
+- `out/assets/scene-orbit-*.webm`
+- `out/stills/assets/scene-orbit-*.png`
 
-确认构图、图标、配色。透明 WebM 用 `alphaextract` 验证，或直接看它叠在实拍上的效果。
+确认构图、图标、配色。透明 WebM 用 `alphaextract` 验证，或直接看它叠在实拍上的效果。参数与变体在 `creative/scene-orbit/` 里改；工作台 `#/creative` 可视化编辑。
 
 ## 5. 规划一条成片（2 分钟）
 
@@ -85,15 +85,14 @@ node run.mjs mix --duration 12 --outputs 1 --seed 20261108
 ## 8. 接下来去哪
 
 - 想改选镜：`modules/mix/planner.mjs`。
-- 想加 preset：`src/generated/presets/` + `presets.json` + `registry.ts`。
-- 想加 recipe：`src/generated/recipes.json` + `config/pipeline.json`；审核用 `generate --review` / `--approve`。
+- 想加引擎：默认在创意工程的 `engine/` 放 `engine.json` + `index.tsx`；被复用后再移到 `creative/engines/`，最后跑 `creative scan --write-registry`。
+- 想加创意：在 `creative/` 新建工程与变体，跑 `creative validate` / `creative build`；审核用 `creative review --status`。
 - 想裂变作品：`node run.mjs fission`；作品素材隔离、缓存与清理见 `docs/FISSION.md`。
-- 想调裂变差异：改 `src/generated/variation.json` 的版式/背景/光色/文案/节奏/素材主题轴。
+- 想调裂变差异：改 `creative/shared/variation.json` 的版式/背景/光色/文案/节奏轴。
 - 想查观感重复 / 覆盖：`node run.mjs quality`，看 `out/quality/report.md`；规则见 `docs/QUALITY.md`。
 - 想用可视化工作台：`npm run workbench`，打开 `http://127.0.0.1:4317/`；见 `docs/WORKBENCH.md`。
-- 想加音效/BGM：先看 `docs/AUDIO.md`，再登记 `common/assets/{sfx,music}/index.json`。
+- 想加音效/BGM：先看 `docs/AUDIO.md`，再登记 `creative/shared/audio/{sfx,music}.index.json`。
 - 想加动效：先看 `docs/MOTION_PROMPTS.md` 的 90 条库与竖屏换算。
-- 想加标签：`modules/lib/tagger.mjs`。
 - 想加依赖：`docs/DEPENDENCIES.md`。
 - 遇到坑：先看 `docs/LESSONS.md` 与 `docs/TROUBLESHOOTING.md`。
 - 任务结束：更新 `STATUS.md`，有新坑追加 `docs/LESSONS.md`，跑 `npm run check`。

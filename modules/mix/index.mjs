@@ -140,33 +140,7 @@ try {
   if (!pool.length) {
     throw new Error("没有可用的实拍视频：素材库里没有时长 >= 1.5s 的视频");
   }
-  const tagSet = (asset) =>
-    new Set(
-      [
-        ...(asset.tags?.platforms ?? []),
-        ...(asset.tags?.subjects ?? []),
-        ...(asset.tags?.actions ?? []),
-        ...(asset.tags?.mood ?? []),
-        ...(asset.tags?.keywords ?? []),
-        asset.tags?.shotScale,
-        asset.tags?.platform,
-      ].filter(Boolean),
-    );
-  const themeTags = Array.isArray(cfg.mix.footageTags)
-    ? cfg.mix.footageTags
-    : [];
-  const themed = themeTags.length
-    ? pool.filter((asset) => {
-        const tags = tagSet(asset);
-        return themeTags.every((tag) => tags.has(tag));
-      })
-    : pool;
-  const activePool = themed.length >= 5 ? themed : pool;
-  if (themeTags.length) {
-    console.log(
-      `[mix] footage theme ${themeTags.join("+")} -> ${activePool.length}/${pool.length}`,
-    );
-  }
+  const activePool = pool;
   const workId = cfg.mix.work ? normalizeWorkId(cfg.mix.work) : null;
   if (workId) cfg.mix.work = workId;
   const catalogAll = readCatalog(cfg).filter((entry) =>
@@ -176,7 +150,7 @@ try {
     ? catalogAll.filter((entry) => isVisibleToWork(entry, workId))
     : catalogAll.filter((entry) => (entry.scope ?? "shared") === "shared");
   if (!catalog.length) {
-    throw new Error("生成素材为空：先运行 node run.mjs generate 或 fission");
+    throw new Error("生成素材为空：先运行 node run.mjs creative build");
   }
   if (workId) {
     const own = catalog.filter(

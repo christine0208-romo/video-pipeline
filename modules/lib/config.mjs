@@ -103,30 +103,11 @@ export function loadConfig(argv = process.argv.slice(2)) {
   if (flags["min-shots"]) cfg.mix.minShots = Number(flags["min-shots"]);
   if (flags["max-shots"]) cfg.mix.maxShots = Number(flags["max-shots"]);
   if (flags["generate-duration"]) {
-    cfg.generate.duration = Number(flags["generate-duration"]);
+    cfg.creative.duration = Number(flags["generate-duration"]);
   }
   if (flags.outputs) cfg.mix.outputs = Number(flags.outputs);
   if (flags.seed) cfg.mix.seed = Number(flags.seed);
-  if (flags.presets) {
-    cfg.generate.presets = splitList(flags.presets);
-  }
-  if (flags.variants) {
-    cfg.generate.variantsPerPreset = Number(flags.variants);
-    cfg.generate.variantsPerRecipe = Number(flags.variants);
-  }
-  if (flags["variants-recipe"]) {
-    cfg.generate.variantsPerRecipe = Number(flags["variants-recipe"]);
-  }
   if (flags.limit) cfg.limit = Number(flags.limit);
-  if (flags.only) {
-    cfg.generate.presets = splitList(flags.only);
-    cfg.generate.recipes = [];
-  }
-  if (flags.recipe) {
-    cfg.generate.recipes = splitList(flags.recipe);
-    cfg.generate.presets = [];
-  }
-  if (isTrue(flags["no-recipes"])) cfg.generate.recipes = [];
   if (isTrue(flags["no-scenes"])) cfg.footage.sceneSplit.enabled = false;
   if (isTrue(flags["no-thumbs"])) cfg.footage.thumbs.enabled = false;
   if (isTrue(flags["no-crop"])) cfg.footage.cropDetect = false;
@@ -206,9 +187,18 @@ export function loadConfig(argv = process.argv.slice(2)) {
     cache: path.resolve(PIPELINE_ROOT, runtime.cacheDir ?? ".cache/video-pipeline"),
     temp: path.resolve(PIPELINE_ROOT, runtime.tempDir ?? ".cache/video-pipeline/tmp"),
     release: path.resolve(PIPELINE_ROOT, runtime.releaseDir ?? "release"),
+    creative: path.resolve(PIPELINE_ROOT, cfg.creative?.root ?? "creative"),
   };
   cfg.footage.roots = cfg.footage.roots.map((root) =>
     path.isAbsolute(root) ? path.normalize(root) : path.resolve(REPO_ROOT, root),
   );
+  if (flags["asset-roots"]) {
+    cfg.assets = { ...(cfg.assets ?? {}), roots: splitList(flags["asset-roots"]) };
+  }
+  const assetRoots = cfg.assets?.roots?.length ? cfg.assets.roots : ["assets"];
+  cfg.assetRoots = assetRoots.map((root) =>
+    path.isAbsolute(root) ? path.normalize(root) : path.resolve(REPO_ROOT, root),
+  );
+  cfg.paths.assets = cfg.assetRoots[0];
   return cfg;
 }

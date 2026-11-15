@@ -16,6 +16,11 @@
     "ffmpeg": "ffmpeg",
     "ffprobe": "ffprobe"
   },
+  "assets": {
+    "roots": [
+      "assets"
+    ]
+  },
   "footage": {
     "roots": [
       "footage"
@@ -40,9 +45,6 @@
       "System Volume Information",
       ".cache"
     ],
-    "sidecars": [
-      "tags.json"
-    ],
     "cropDetect": true,
     "sceneSplit": {
       "enabled": true,
@@ -56,46 +58,12 @@
       "width": 480
     }
   },
-  "generate": {
-    "presets": [
-      "platform-orbit",
-      "social-constellation",
-      "network-universe",
-      "icon-morph",
-      "ui-mock",
-      "kinetic-grid"
-    ],
-    "recipes": [
-      "text-char-rise",
-      "text-typewriter",
-      "text-keyword",
-      "platform-icons-neon",
-      "platform-icons-neon-global",
-      "transition-flash",
-      "transition-wipe",
-      "transition-glitch",
-      "transition-light-leak",
-      "particle-dust",
-      "particle-orbs",
-      "camera-push",
-      "camera-shake",
-      "camera-zoom",
-      "camera-pull"
-    ],
-    "variantsPerPreset": 2,
-    "variantsPerRecipe": 2,
-    "duration": 3,
-    "formats": [
-      "mp4",
-      "webm-alpha"
-    ]
-  },
   "mix": {
     "duration": 30,
     "outputs": 1,
     "seed": 20261108,
     "maxPerAsset": 3,
-    "maxPerRecipe": 2,
+    "maxPerCreative": 2,
     "minGap": 2,
     "generatedRatio": 0.3,
     "shotLength": {
@@ -158,8 +126,17 @@
       "scene": 1,
       "overlay": 2,
       "transition": 2
-    },
-    "recipePool": "all"
+    }
+  },
+  "creative": {
+    "root": "creative",
+    "maxAssetsPerVariant": 24,
+    "autoQuality": true,
+    "formats": [
+      "mp4",
+      "webm-alpha"
+    ],
+    "pool": "all"
   },
   "quality": {
     "autoAnalyze": true,

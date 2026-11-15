@@ -1,8 +1,8 @@
 import React from "react";
 import { AbsoluteFill } from "remotion";
-import { FONT_MANIFEST, useFonts } from "./platform";
-import { PRESETS } from "./generated/registry";
-import type { AssetProps } from "./generated/types";
+import { useFonts } from "./platform";
+import { FONT_MANIFEST, PRESETS } from "../creative/registry";
+import type { AssetProps } from "./types";
 
 export const GeneratedAsset: React.FC<AssetProps> = ({ preset, props = {}, alpha }) => {
   const ready = useFonts(FONT_MANIFEST);

@@ -117,3 +117,31 @@ platform-icons-neon #6   Instagram 图标故障爆发
 - T08 `text-count` / P05 `particle-flow` 已禁用，9 条相关素材退役；相似素材按 `series` 聚合，工作台默认只看 approved 并可“按系列分组”。
 - 工作台用中文展示类型、状态和质量标记，并可按类型筛选。
 - 完整的分类体系、系列命名、cue 字段与踩点策略等待用户提供设计思路后细化。
+
+## 8. 创意工程
+
+2026-11-14 起，生成素材的唯一来源是 `creative/`：引擎实现默认跟随创意工程放在 `engine/`，被复用的引擎放在 `creative/engines/`；创意工程用变体 items 产出素材。文字、转场、粒子、镜头、霓虹图标、四个场景引擎、icon-morph、ui-mock 都已迁完，共 11 个工程 / 55 条活跃素材。旧的 preset/recipe 生成路径已删除。
+
+## 9. 素材部署
+
+素材二进制和清单都属于内容包：`creative/shared/assets.manifest.json` 记录每个文件的路径、哈希、许可、来源与可选下载地址；落点是独立素材库 `assets/`（gitignore，不随核心仓库提交）。`config/pipeline.json` 的 `assets.roots` 可配多个根，按顺序合并：同名单目录会递归合并，同一相对路径由前一个根优先；`--asset-roots` 可临时覆盖。
+
+素材根和实拍根用同一套规则：`pipeline.json` 只放可移植的默认值（`"assets"` / `"footage"`），机器相关的绝对路径写 `config/local.json`（gitignore，参考 `config/local.example.json`）。
+
+没有清单时视为空核心：`assets:check` / `sync` 跳过素材检查并成功退出，渲染用空字体清单。
+
+```bash
+npm run assets:check          # 缺失检查
+npm run assets:verify         # 额外做 SHA-256
+npm run assets:scan           # 磁盘与清单差异：新增 / 变更 / 缺失
+npm run assets:fetch          # 下载有稳定直链的条目
+npm run assets:fetch -- --from D:/my-assets
+node tools/assets.mjs scan --apply            # 登记新文件（license=unknown，待人工补）
+node tools/assets.mjs scan --apply --prune    # 同时移除已删文件的清单条目
+node tools/assets.mjs check --strict          # license=unknown 时失败
+```
+
+没有稳定直链的条目（部分图标、Impact/Digital 音效、Kevin MacLeod 曲目、品牌 logo、中文展示字体）需要用户通过 `--from` 提供。
+
+许可与署名见 `creative/shared/CREDITS.md`。音效与 BGM 索引在 `creative/shared/audio/{sfx,music}.index.json`，音频文件仍在素材根 `assets/{sfx,music}`；索引缺失时静音，不报错。
+

@@ -10,20 +10,19 @@ function load(file, fallback) {
   return CACHE.get(file);
 }
 
-export function readVariation() {
-  return load(
-    path.join(PIPELINE_ROOT, "src", "generated", "variation.json"),
-    {
-      palettes: ["aurora"],
-      text: {},
-      particle: {},
-      camera: {},
-      transition: {},
-      durations: {},
-      rhythmProfiles: [],
-      footageThemes: [],
-    },
-  );
+const creativeRoot = (cfg) =>
+  cfg?.paths?.creative ?? path.join(PIPELINE_ROOT, "creative");
+
+export function readVariation(cfg = null) {
+  return load(path.join(creativeRoot(cfg), "shared", "variation.json"), {
+    palettes: [],
+    text: {},
+    particle: {},
+    camera: {},
+    transition: {},
+    durations: {},
+    rhythmProfiles: [],
+  });
 }
 
 const pick = (list, rnd) =>
@@ -34,15 +33,14 @@ const textProfile = (text, rnd) => ({
   vertical: pick(text.verticals ?? ["center"], rnd) ?? "center",
   background: pick(text.backgrounds ?? ["none"], rnd) ?? "none",
   light: pick(text.lights ?? ["center"], rnd) ?? "center",
-  letterSpacing:
-    pick(text.letterSpacings ?? [0.02], rnd) ?? 0.02,
+  letterSpacing: pick(text.letterSpacings ?? [0.02], rnd) ?? 0.02,
   lineHeight: pick(text.lineHeights ?? [1.15], rnd) ?? 1.15,
-  fontSize: pick(text.fontSizes ?? [96], rnd) ?? 96,
-  fontWeight: pick(text.fontWeights ?? [900], rnd) ?? 900,
-  maxWidth: pick(text.maxWidths ?? [920], rnd) ?? 920,
-  copy: text.copy ?? ["连接，从这里开始"],
-  keywords: text.keywords ?? ["连接"],
-  numbers: text.numbers ?? [100],
+  fontSize: pick(text.fontSizes ?? [], rnd),
+  fontWeight: pick(text.fontWeights ?? [], rnd),
+  maxWidth: pick(text.maxWidths ?? [], rnd),
+  copy: text.copy ?? [],
+  keywords: text.keywords ?? [],
+  numbers: text.numbers ?? [],
 });
 
 const particleProfile = (particle, rnd) => ({
@@ -56,7 +54,7 @@ const particleProfile = (particle, rnd) => ({
 });
 
 const cameraProfile = (camera, rnd, icons) => ({
-  base: pick(camera.bases ?? ["platform-orbit"], rnd) ?? "platform-orbit",
+  base: pick(camera.bases ?? [], rnd),
   post: pick(camera.posts ?? ["none"], rnd) ?? "none",
   grade: pick(camera.grades ?? [{}], rnd) ?? {},
   icons,
@@ -67,32 +65,23 @@ const transitionProfile = (transition, rnd) => ({
   intensity: pick(transition.intensities ?? [1], rnd) ?? 1,
 });
 
-export function pickVariation(workSeed) {
-  const variation = readVariation();
+export function pickVariation(workSeed, cfg = null) {
+  const variation = readVariation(cfg);
   const rnd = makeRng(workSeed);
-  const assets = load(
-    path.join(PIPELINE_ROOT, "src", "generated", "assets.json"),
-    {},
-  );
-  const iconPoolName = pick(
-    variation.camera?.iconPools ?? ["social"],
-    rnd,
-  );
-  const iconPool = assets[iconPoolName] ?? assets.social ?? [];
+  const iconData = load(path.join(creativeRoot(cfg), "shared", "icons.json"), {});
+  const iconPoolName = pick(variation.camera?.iconPools ?? ["social"], rnd);
+  const iconPool = iconData[iconPoolName] ?? iconData.social ?? [];
   const icons = shuffle(iconPool, rnd).slice(
     0,
     Math.min(iconPool.length, 4 + Math.floor(rnd() * 4)),
   );
-  const palettes = variation.palettes ?? ["aurora"];
+  const palettes = variation.palettes ?? [];
   const profiles = variation.rhythmProfiles ?? [];
-  const themes = variation.footageThemes ?? [];
-  const palette =
-    palettes[seedFrom(`${workSeed}:palette`) % palettes.length] ?? "aurora";
+  const palette = palettes.length
+    ? palettes[seedFrom(`${workSeed}:palette`) % palettes.length]
+    : undefined;
   const rhythm = profiles.length
     ? profiles[seedFrom(`${workSeed}:rhythm`) % profiles.length]
-    : null;
-  const footageTheme = themes.length
-    ? themes[seedFrom(`${workSeed}:theme`) % themes.length]
     : null;
 
   const profile = {
@@ -109,7 +98,6 @@ export function pickVariation(workSeed) {
       overlayBias: 1,
       shotLength: { min: 1.4, max: 2.6 },
     },
-    footageTheme: footageTheme ?? { name: "mixed", tags: [] },
   };
   profile.summary = {
     palette: profile.palette,
@@ -125,70 +113,78 @@ export function pickVariation(workSeed) {
     transitionAngle: profile.transition.angle,
     transitionIntensity: profile.transition.intensity,
     rhythm: profile.rhythm.name,
-    footageTheme: profile.footageTheme.name,
   };
   return profile;
 }
 
 export function variationDuration(recipe, profile, workSeed) {
-  const key =
-    recipe.engine === "camera"
-      ? "camera"
-      : recipe.engine === "transition"
-        ? "transition"
-        : recipe.engine === "particle"
-          ? "particle"
-          : "text";
+  const category = recipe.category ?? recipe.engine;
+  const key = ["camera", "transition", "particle"].includes(category)
+    ? category
+    : "text";
   const list = profile.durations?.[key];
   if (!Array.isArray(list) || !list.length) return recipe.durationFrames;
   return list[seedFrom(`${workSeed}:${recipe.id}:duration`) % list.length];
 }
 
+const AXES = {
+  text: [
+    "align",
+    "vertical",
+    "background",
+    "light",
+    "letterSpacing",
+    "lineHeight",
+    "fontSize",
+    "fontWeight",
+    "maxWidth",
+  ],
+  particle: [
+    "distribution",
+    "background",
+    "light",
+    "colorMix",
+    "countScale",
+    "sizeScale",
+    "speedScale",
+  ],
+  camera: ["post", "grade"],
+  transition: ["angle", "intensity"],
+};
+
 export function applyVariation(recipe, props, profile, workSeed, index) {
-  props.palette = profile.palette;
+  if (profile.palette) props.palette = profile.palette;
   props.seed =
     Math.floor(makeRng(workSeed + index * 101 + seedFrom(recipe.id))() * 1000000) +
     workSeed;
 
-  if (recipe.engine === "text" || recipe.preset === "text-atom") {
-    Object.assign(props, {
-      align: profile.text.align,
-      vertical: profile.text.vertical,
-      background: profile.text.background,
-      light: profile.text.light,
-      letterSpacing: profile.text.letterSpacing,
-      lineHeight: profile.text.lineHeight,
-      fontSize: profile.text.fontSize,
-      fontWeight: profile.text.fontWeight,
-      maxWidth: profile.text.maxWidth,
-    });
-    if (recipe.code === "T08") {
-      const numbers = profile.text.numbers;
+  const category = recipe.category ?? recipe.engine;
+  const section = profile[category];
+
+  if (section) {
+    for (const key of AXES[category] ?? []) {
+      if (section[key] !== undefined) props[key] = section[key];
+    }
+  }
+
+  if (category === "text") {
+    const { numbers, copy, keywords } = profile.text;
+    if (numbers.length && "countTo" in props) {
       props.countTo =
         numbers[(seedFrom(`${workSeed}:${recipe.id}:number`) + index) % numbers.length];
-    } else {
-      const copy = profile.text.copy;
+    }
+    if (copy.length && "text" in props) {
       const phrase =
         copy[(seedFrom(`${workSeed}:${recipe.id}:text`) + index) % copy.length];
       props.text = phrase;
-      if (recipe.code === "T06") {
+      if ("keyword" in props && keywords.length) {
         props.keyword =
-          profile.text.keywords.find((keyword) => phrase.includes(keyword)) ??
-          profile.text.keywords[0];
+          keywords.find((keyword) => phrase.includes(keyword)) ?? keywords[0];
       }
     }
   }
 
-  if (recipe.engine === "particle" || recipe.preset === "particle-atom") {
-    Object.assign(props, {
-      distribution: profile.particle.distribution,
-      background: profile.particle.background,
-      light: profile.particle.light,
-      colorMix: profile.particle.colorMix,
-      countScale: profile.particle.countScale,
-      sizeScale: profile.particle.sizeScale,
-      speedScale: profile.particle.speedScale,
-    });
+  if (category === "particle") {
     props.count = Math.max(
       8,
       Math.round((props.count ?? 80) * profile.particle.countScale),
@@ -201,19 +197,14 @@ export function applyVariation(recipe, props, profile, workSeed, index) {
     }
   }
 
-  if (recipe.engine === "camera" || recipe.preset === "camera-scene") {
-    props.basePreset = profile.camera.base;
-    props.baseProps = {
-      ...(props.baseProps ?? {}),
-      icons: profile.camera.icons,
-    };
-    props.post = profile.camera.post;
-    props.grade = profile.camera.grade;
-  }
-
-  if (recipe.engine === "transition" || recipe.preset === "transition-atom") {
-    props.angle = profile.transition.angle;
-    props.intensity = profile.transition.intensity;
+  if (category === "camera") {
+    if (profile.camera.base) props.basePreset = profile.camera.base;
+    if (profile.camera.icons?.length) {
+      props.baseProps = {
+        ...(props.baseProps ?? {}),
+        icons: profile.camera.icons,
+      };
+    }
   }
 
   return props;

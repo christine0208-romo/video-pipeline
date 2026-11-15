@@ -3,7 +3,7 @@
  * 一键入口：
  *   node run.mjs all
  *   node run.mjs scan --check
- *   node run.mjs generate --only platform-orbit --variants 1
+ *   node run.mjs creative plan --creative <id>
  *   node run.mjs mix --duration 15 --outputs 2
  *   node run.mjs stills
  *   node run.mjs check
@@ -18,7 +18,7 @@ const REPO = ROOT;
 
 const STAGES = {
   scan: "modules/scan/index.mjs",
-  generate: "modules/generate/index.mjs",
+  creative: "modules/creative/index.mjs",
   mix: "modules/mix/index.mjs",
   fission: "modules/fission/index.mjs",
   quality: "modules/quality/index.mjs",
@@ -29,6 +29,8 @@ const TOOLS = {
   public: "tools/migrate-public.mjs",
   reindex: "tools/reindex.mjs",
   runtime: "tools/reconcile-runtime.mjs",
+  sync: "tools/sync.mjs",
+  projects: "tools/projects.mjs",
 };
 
 const argv = process.argv.slice(2);
@@ -61,29 +63,26 @@ function help() {
 
 stage:
   scan       扫描实拍素材，增量更新素材库
-  generate   渲染生成素材库（MP4 + 透明 WebM）
+  creative   创意工程：scan / validate / plan / build / preview / review / reset
   quality    分析生成素材：pHash / 观感相似度 / 覆盖矩阵
   mix        规划并渲染混剪成片
   fission    按作品生成独立素材并出片
-  all        scan -> generate -> mix
+  all        scan -> creative build -> mix
   stills     只出混剪关键帧，供复查
   check      校验已有 EDL 的去重约束
   cache      列出/清理受管缓存与临时产物
   public     报告或迁移 public 链接投影
   reindex    按实际生成文件重建 catalog（默认 dry-run）
   runtime    隔离/清理检查、下载、public 备份残留
+  sync       扫描创意包与素材清单：报告 / --apply 登记 / --check 只检查
+  projects   扫描 projects/*/project.json，校验项目包
 
 常用参数:
   --config <file>          配置文件，默认 config/pipeline.json
   --roots a,b              覆盖素材根目录
+  --asset-roots a,b        覆盖素材库根目录（默认取 assets.roots）
   --limit N                只处理 N 个新素材（调试用）
   --check                  扫描后若有新/变更素材则退出码 2
-  --only p1,p2             只生成指定 preset
-  --recipe r1,r2           只生成指定 recipe（清空 preset 列表）
-  --no-recipes             本次不生成 recipe
-  --variants N             每个 preset / recipe 生成几组变体
-  --variants-recipe N      每个 recipe 生成几组变体
-  --generate-duration N    生成片段时长（秒，仅 preset）
   --duration N             成片时长（秒）
   --shot-length N          目标镜头长度（秒）；实际范围约 0.8N–1.25N
   --shot-min N             镜头长度下限（秒）
@@ -97,10 +96,6 @@ stage:
   --dry-run                只规划不渲染
   --stills-only            只出静帧
   --check-only             只校验 EDL
-  --review                 审核目录：列出状态、静帧路径
-  --approve id1,id2        批准资产；all 批准全部 draft
-  --reject id1,id2         退役资产；all 退役全部 draft
-  --status draft           配合 --review 过滤状态
   --allow-draft            混剪时允许使用 draft 资产
   --allow-low-quality      混剪时允许使用质量检查不达标的生成素材
   --no-perceptual-dedupe   关闭同一条成片内的观感相近去重
@@ -145,7 +140,7 @@ if (TOOLS[stage]) {
 }
 
 if (stage === "all") {
-  for (const name of ["scan", "generate", "mix"]) runStage(name, rest);
+  for (const name of ["scan", "creative", "mix"]) runStage(name, rest);
 } else if (stage === "stills") {
   runStage("mix", [...rest, "--stills-only"]);
 } else if (stage === "check") {

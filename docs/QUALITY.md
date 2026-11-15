@@ -1,10 +1,10 @@
 # QUALITY · pHash / 观感相似度 / 覆盖矩阵
 
-生成素材的差异不能只看参数轴：不同 palette、不同 recipe 仍可能看起来很像。质量模块从成片文件本身出发，计算感知哈希与画面指标，给出：
+生成素材的差异不能只看参数轴：不同 palette、不同创意工程仍可能看起来很像。质量模块从成片文件本身出发，计算感知哈希与画面指标，给出：
 
 - 每条素材的 `quality`（pHash、alpha 覆盖率、运动能量、亮度/对比度、平均色）；
 - 素材之间的观感相似度与感知簇；
-- 按层 / recipe / palette / variation 轴的覆盖矩阵；
+- 按层 / 创意工程 / palette / variation 轴的覆盖矩阵；
 - 近似重复对与质量警告；
 - 混剪时的感知去重与质量闸门。
 
@@ -65,7 +65,7 @@ node run.mjs quality --strict
 node run.mjs quality --list
 ```
 
-`generate` 与 `fission` 渲染完成后会自动分析本次渲染或缺失质量的素材；`--dry-run` 不分析。
+`creative build` 与 `fission` 渲染完成后会自动分析本次渲染或缺失质量的素材；`--dry-run` 不分析。
 
 ## 3. 报告
 
@@ -77,7 +77,7 @@ node run.mjs quality --list
 | 矩阵 | 含义 |
 |---|---|
 | palette × layer | 每层实际用到的调色板 |
-| recipe × palette | recipe 与调色板组合覆盖（只算 recipe 素材） |
+| creative × palette | 创意工程与调色板组合覆盖 |
 | engine × layer | 引擎分布 |
 | scope × layer | shared / work 分布 |
 

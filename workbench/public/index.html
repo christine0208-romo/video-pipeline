@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>video-pipeline 工作台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="brand-mark">VP</span>
+        <div class="brand-text">
+          <strong>video-pipeline</strong>
+          <small id="brandSpec">工作台</small>
+        </div>
+      </div>
+
+      <nav class="nav" id="nav">
+        <a href="#/overview" data-page="overview">概览</a>
+        <a href="#/assets" data-page="assets">素材</a>
+        <a href="#/creative" data-page="creative">创意</a>
+        <a href="#/tasks" data-page="tasks">任务</a>
+        <a href="#/outputs" data-page="outputs">成片</a>
+        <a href="#/quality" data-page="quality">质量</a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <div class="job-badge" id="jobBadge" hidden>
+          <span class="job-dot"></span>
+          <div>
+            <strong id="jobBadgeStage">任务</strong>
+            <small id="jobBadgeStatus">运行中</small>
+          </div>
+        </div>
+        <div class="counts" id="sideCounts"></div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <h1 id="pageTitle">概览</h1>
+          <p class="subtitle" id="pageSubtitle"></p>
+        </div>
+        <div class="topbar-actions" id="pageActions"></div>
+      </header>
+      <section class="view" id="view" aria-live="polite"></section>
+    </main>
+
+    <div class="modal" id="modal" hidden>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <header class="modal-head">
+          <h2 id="modalTitle"></h2>
+          <button class="icon-btn" id="modalClose" type="button" aria-label="关闭">×</button>
+        </header>
+        <div class="modal-body" id="modalBody"></div>
+      </div>
+    </div>
+
+    <div class="toast" id="toast" hidden></div>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

@@ -18,6 +18,7 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../modules/lib/config.mjs";
+import { findAssetFile } from "../modules/lib/assets.mjs";
 import { findBrowser } from "../modules/lib/render.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -92,18 +93,41 @@ const browser = findBrowser();
 if (browser) ok(`浏览器：${browser}`);
 else warn("未找到 Chrome / headless shell；设 REMOTION_BROWSER 或安装 Chrome");
 
-for (const file of [
-  "common/assets/REGISTRY.json",
-  "common/assets/fonts/NotoSansSC-Regular.otf",
-  "common/assets/icons/whatsapp.svg",
-  "common/assets/map/world-dots.json",
-  "common/assets/sfx/index.json",
-  "common/assets/music/index.json",
-  "common/shots/INDEX.md",
-  "common/vendor/fy-LICENSE.md",
-]) {
+for (const file of ["common/vendor/fy-LICENSE.md"]) {
   if (existsSync(path.join(ROOT, file))) ok(file);
   else bad(`缺少资源：${file}`);
+}
+
+const manifestFile = path.join(ROOT, "creative", "shared", "assets.manifest.json");
+if (!existsSync(manifestFile)) {
+  warn("没有内容包素材清单（creative/shared/assets.manifest.json）；空核心可直接渲染");
+} else if (cfg) {
+  const roots = cfg.assetRoots.map((root) => path.relative(ROOT, root).split(path.sep).join("/"));
+  for (const root of cfg.assetRoots) {
+    if (existsSync(root)) ok(`素材根：${path.relative(ROOT, root).split(path.sep).join("/")}`);
+    else warn(`素材根不存在：${path.relative(ROOT, root).split(path.sep).join("/")}（改 config/pipeline.json 或 config/local.json 的 assets.roots）`);
+  }
+  const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
+  const entries = manifest.assets ?? [];
+  const seen = new Set();
+  const samples = [];
+  for (const entry of entries) {
+    const dir = entry.path.split("/")[0];
+    if (seen.has(dir)) continue;
+    seen.add(dir);
+    samples.push(entry);
+    if (samples.length >= 5) break;
+  }
+  const missing = samples.filter((entry) => !findAssetFile(cfg.assetRoots, entry.path));
+  if (!entries.length) {
+    ok("素材清单为空");
+  } else if (missing.length) {
+    warn(
+      `素材未部署：抽查 ${samples.length} 项缺 ${missing.length} 项；运行 npm run assets:fetch 或 node tools/assets.mjs fetch --from <dir>（素材根：${roots.join(" / ")}）`,
+    );
+  } else {
+    ok(`素材已部署（清单 ${entries.length} 条，抽查 ${samples.length} 项）`);
+  }
 }
 
 for (const link of ["public/assets", "public/generated", "public/thumbs", "public/music"]) {
@@ -116,6 +140,14 @@ for (const link of ["public/assets", "public/generated", "public/thumbs", "publi
     if (lstatSync(full).isSymbolicLink()) {
       const target = readlinkSync(full);
       ok(`${link} -> ${target}`);
+    } else if (link === "public/assets") {
+      const entries = readdirSync(full, { withFileTypes: true });
+      const linked = entries.filter((entry) => entry.isSymbolicLink()).length;
+      if (entries.length) {
+        ok(`${link}：${entries.length} 个顶层项（${linked} 个整目录链接）`);
+      } else {
+        warn(`${link} 为空（素材根未部署）`);
+      }
     } else {
       warn(`${link} 不是链接，可能是旧拷贝；删除后重跑 scan`);
     }
@@ -172,4 +204,4 @@ if (problems.length) {
   process.exit(1);
 }
 console.log(`体检通过：${warnings.length} 个警告。`);
-console.log("下一步：node run.mjs scan  →  node run.mjs generate  →  node run.mjs quality  →  node run.mjs mix");
+console.log("下一步：node run.mjs scan  →  node run.mjs creative build  →  node run.mjs quality  →  node run.mjs mix");

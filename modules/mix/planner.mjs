@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
+import { findAssetFile } from "../lib/assets.mjs";
 import { readJson, shortHash } from "../lib/fsx.mjs";
 import { linkMusic } from "../lib/public.mjs";
 import { makeRng, pick, shuffle } from "../lib/rng.mjs";
@@ -265,7 +266,7 @@ function pickFootageShot(state, shotDur, rnd) {
 }
 
 function pickGeneratedShot(state, shotDur, rnd, role) {
-  const maxPerRecipe = Number(state.cfg.mix.maxPerRecipe ?? 2);
+  const maxPerCreative = Number(state.cfg.mix.maxPerCreative ?? 2);
   const base = state.catalog.filter(
     (entry) =>
       existsSync(entry.fileMp4) &&
@@ -274,8 +275,8 @@ function pickGeneratedShot(state, shotDur, rnd, role) {
       qualityAllowed(entry, state.cfg) &&
       sceneEntry(entry) &&
       roleAllowed(entry, role) &&
-      (!entry.recipeId ||
-        (state.recipeCounts[entry.recipeId] ?? 0) < maxPerRecipe),
+      (!entry.creativeId ||
+        (state.creativeCounts[entry.creativeId] ?? 0) < maxPerCreative),
   );
   const candidates = base.filter((entry) => perceptualAllowed(entry, state));
   const entries = preferWork(candidates.length ? candidates : base, state.workId);
@@ -288,9 +289,9 @@ function pickGeneratedShot(state, shotDur, rnd, role) {
   );
   const entry = sorted[0];
   state.usedPerceptual.push(entry);
-  if (entry.recipeId) {
-    state.recipeCounts[entry.recipeId] =
-      (state.recipeCounts[entry.recipeId] ?? 0) + 1;
+  if (entry.creativeId) {
+    const capKey = entry.creativeId;
+    state.creativeCounts[capKey] = (state.creativeCounts[capKey] ?? 0) + 1;
   }
   const transform = baseTransform(rnd);
   if (entry.engine === "camera") {
@@ -583,19 +584,31 @@ function pickAutoTrack(cfg, tracks) {
   return scored[0]?.track ?? null;
 }
 
+function musicSrcOf(cfg, file) {
+  for (const root of cfg.assetRoots) {
+    const dir = path.join(root, "music");
+    if (file.startsWith(dir + path.sep)) {
+      const relative = path.relative(dir, file).split(path.sep).join("/");
+      return `assets/music/${relative}`;
+    }
+  }
+  return linkMusic(cfg, file);
+}
+
 function resolveMusic(cfg) {
   const config = cfg.mix.music;
   if (!config) return null;
 
   const indexFile = path.join(
-    cfg.paths.repo,
-    "common",
-    "assets",
-    "music",
-    "index.json",
+    cfg.paths.creative,
+    "shared",
+    "audio",
+    "music.index.json",
   );
   const index = loadIndex(indexFile, { tracks: [] });
-  const tracks = index.tracks ?? [];
+  const tracks = (index.tracks ?? []).filter((track) =>
+    findAssetFile(cfg.assetRoots, `music/${track.file}`),
+  );
   const options = typeof config === "object" ? config : {};
   let track = null;
   let file = null;
@@ -628,13 +641,9 @@ function resolveMusic(cfg) {
   }
 
   if (track) {
-    file = path.resolve(
-      cfg.paths.repo,
-      "common",
-      "assets",
-      "music",
-      track.file,
-    );
+    file =
+      findAssetFile(cfg.assetRoots, `music/${track.file}`) ??
+      path.resolve(cfg.paths.repo, track.file);
   }
   if (!file || !existsSync(file)) {
     console.warn(`[mix] 背景音乐不存在，已忽略：${file ?? "(auto)"}`);
@@ -649,15 +658,7 @@ function resolveMusic(cfg) {
     track?.loop ||
       (duration > 0 && duration < Number(cfg.mix.duration) + 1),
   );
-  const musicDir = path.join(
-    cfg.paths.repo,
-    "common",
-    "assets",
-    "music",
-  );
-  const src = file.startsWith(musicDir + path.sep)
-    ? `music/${path.relative(musicDir, file).split(path.sep).join("/")}`
-    : linkMusic(cfg, file);
+  const src = musicSrcOf(cfg, file);
   return {
     src,
     volume: Number(options.volume ?? track?.volume ?? 0.6),
@@ -679,14 +680,15 @@ function buildSfx(cfg, beats, shots) {
   if (config.enabled === false) return [];
 
   const indexFile = path.join(
-    cfg.paths.repo,
-    "common",
-    "assets",
-    "sfx",
-    "index.json",
+    cfg.paths.creative,
+    "shared",
+    "audio",
+    "sfx.index.json",
   );
   const index = loadIndex(indexFile, { items: [] });
-  const items = index.items ?? [];
+  const items = (index.items ?? []).filter((item) =>
+    findAssetFile(cfg.assetRoots, `sfx/${item.file}`),
+  );
   if (!items.length) return [];
 
   const byId = new Map(items.map((item) => [item.id, item]));
@@ -808,8 +810,7 @@ export function planOutput(cfg, { index, pool, catalog, registry }) {
     usedOverlay: new Set(),
     usedTransition: new Set(),
     usedPerceptual: [],
-    recipeCounts: {},
-    lastFootageId: null,
+    creativeCounts: {},    lastFootageId: null,
     lastGeneratedId: null,
     lastOverlayId: null,
     lastTransitionId: null,
@@ -870,8 +871,7 @@ export function planOutput(cfg, { index, pool, catalog, registry }) {
               src: entry.publicWebm,
               dur: Math.min(shotDur, entry.duration),
               blend:
-                entry.recipeId?.startsWith("particle-") ||
-                entry.recipeId === "platform-icons-neon"
+                entry.category === "particle" || entry.category === "icon"
                   ? "screen"
                   : undefined,
             };
@@ -908,7 +908,6 @@ export function planOutput(cfg, { index, pool, catalog, registry }) {
         shot = {
           kind: "generated",
           assetId: generated.entry.id,
-          recipeId: generated.entry.recipeId ?? undefined,
           src: generated.entry.publicMp4,
           at: 0,
           dur: shotDur,

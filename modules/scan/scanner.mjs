@@ -12,14 +12,12 @@ import {
   configureTools,
   detectCrop,
   ffprobe,
-  orientation,
   sceneRanges,
   typeOf,
   usefulCrop,
 } from "../lib/media.mjs";
 import { buildThumbs } from "../lib/thumbs.mjs";
 import { ensurePublicLinks } from "../lib/public.mjs";
-import { loadHumanTags, tagAsset } from "../lib/tagger.mjs";
 
 function thumbsOk(prev, cfg) {
   if (cfg.footage.thumbs?.enabled === false) return true;
@@ -80,22 +78,9 @@ export function scanAll(cfg) {
         Math.abs((prev.mtimeMs ?? 0) - stat.mtimeMs) < 1;
 
       if (unchanged && !cfg.flags.force && thumbsOk(prev, cfg)) {
-        const human = loadHumanTags({
-          file,
-          root: link.root,
-          relPath,
-          id: prev.id,
-          cfg,
-        });
-        const tags = tagAsset({
-          relPath,
-          scenes: prev.scenes ?? [],
-          orientation: prev.orientation,
-          human,
-        });
+        const { tags: _tags, orientation: _orientation, ...rest } = prev;
         next.assets[key] = {
-          ...prev,
-          tags,
+          ...rest,
           status: "active",
           lastSeen: now,
         };
@@ -121,20 +106,11 @@ export function scanAll(cfg) {
             : null;
         const width = crop?.w ?? meta.width;
         const height = crop?.h ?? meta.height;
-        const orient = orientation(width, height);
         const scenes =
           type === "video"
             ? sceneRanges(file, meta.duration, cfg.footage.sceneSplit)
             : [];
         const id = safeName(file, shortHash(key));
-        const human = loadHumanTags({
-          file,
-          root: link.root,
-          relPath,
-          id,
-          cfg,
-        });
-        const tags = tagAsset({ relPath, scenes, orientation: orient, human });
         const { thumbs, sheet } = buildThumbs({
           file,
           id,
@@ -160,14 +136,12 @@ export function scanAll(cfg) {
           height: meta.height,
           fps: Number(meta.fps.toFixed(2)),
           hasAudio: meta.hasAudio,
-          orientation: orient,
           crop,
           effectiveWidth: width,
           effectiveHeight: height,
           scenes,
           thumbs,
           sheet,
-          tags,
           status: "active",
           firstSeen: prev?.firstSeen ?? now,
           lastSeen: now,

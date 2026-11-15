@@ -6,9 +6,11 @@
 
 | 类别 | 来源 | 许可 | 本地索引 |
 |---|---|---|---|
-| 音效 | Kenney UI / Interface / Impact / Digital Audio | CC0 1.0 | `common/assets/sfx/index.json` |
-| BGM | AERIS MUSIC CC0 production music | CC0 1.0 | `common/assets/music/index.json` |
-| BGM（备用） | Kevin MacLeod / incompetech | CC BY 4.0 | `common/assets/music/index.json` |
+| 音效 | Kenney UI / Interface / Impact / Digital Audio | CC0 1.0 | `creative/shared/audio/sfx.index.json` |
+| BGM | AERIS MUSIC CC0 production music | CC0 1.0 | `creative/shared/audio/music.index.json` |
+| BGM（备用） | Kevin MacLeod / incompetech | CC BY 4.0 | `creative/shared/audio/music.index.json` |
+
+音频文件本身在素材根 `assets/{sfx,music}`；索引属于内容包，缺失时静音，不报错。
 
 - Kenney：https://kenney.nl/assets/ui-audio、https://kenney.nl/assets/interface-sounds、https://kenney.nl/assets/impact-sounds、https://kenney.nl/assets/digital-audio
 - AERIS MUSIC：https://github.com/farmmer938-lgtm/aeris-cc0-music
@@ -126,6 +128,6 @@ node run.mjs mix --duration 12 --no-sfx
 
 1. 从 CC0 或明确许可的来源取文件；优先 CC0。
 2. 转成 48kHz / 16-bit WAV，做 -18 LUFS 归一化。
-3. 在 `common/assets/sfx/index.json` 增加 `id / file / category / gain / duration / source / license`。
-4. 在 `common/assets/REGISTRY.json` 与 `CREDITS.md` 登记。
+3. 在 `creative/shared/audio/sfx.index.json` 增加 `id / file / category / gain / duration / source / license`。
+4. 用 `node tools/assets.mjs scan --apply` 登记素材，并在 `creative/shared/CREDITS.md` 补许可与署名。
 5. 若新增类别，先在 `docs/MODULES.md` 与本文的映射表里写清用途。

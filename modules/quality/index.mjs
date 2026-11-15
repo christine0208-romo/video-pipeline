@@ -125,7 +125,7 @@ try {
   const catalogFile = path.join(cfg.paths.data, "catalog.json");
   const catalog = readJson(catalogFile, null);
   if (!catalog?.assets?.length) {
-    throw new Error("生成素材库为空：先运行 node run.mjs generate");
+    throw new Error("生成素材库为空：先运行 node run.mjs creative build");
   }
 
   const assets = filterAssets(catalog.assets, cfg);

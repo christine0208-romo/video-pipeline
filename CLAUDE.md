@@ -4,17 +4,17 @@
 
 ## 0. 开工顺序（硬流程）
 
-1. 读 `STATUS.md`、`docs/LESSONS.md`、`docs/RULES.md`。
+1. 读 `STATUS.md`、`docs/LESSONS.md`、`docs/RULES.md`；涉及生成素材再看 `docs/CREATIVE.md`；存在 `docs/PLAN-CORE-CLEAN.md` 时先按它执行。
 2. 跑 `npm run doctor`；缺依赖、ffmpeg、浏览器、素材根目录，先修再继续。
-3. 看 `config/pipeline.json` 的 `footage.roots`、`spec`、`generate.presets`、`mix`。
-4. 素材有变化先 `node run.mjs scan`；生成素材有变化先 `node run.mjs generate`。
+3. 看 `config/pipeline.json` 的 `footage.roots`、`spec`、`creative`、`mix`。
+4. 素材有变化先 `node run.mjs scan`；创意/生成素材有变化先 `node run.mjs creative build`。
 5. 生成/裂变后跑 `node run.mjs quality --report-only` 看感知重复与覆盖；出片走 `node run.mjs mix`，它会先出静帧、再分 3 段抽帧、最后全片。
 6. 收尾：
    - 更新 `STATUS.md`；
    - 有新坑追加 `docs/LESSONS.md`；
    - 新组件登记 `docs/MODULES.md`；
    - 新依赖登记 `docs/dependencies.json` 与 `docs/DEPENDENCIES.md`；
-   - 新素材/字体/图标更新 `CREDITS.md` 与 `common/assets/REGISTRY.json`；
+   - 新素材/字体/图标更新 `creative/shared/CREDITS.md` 并用 `node tools/assets.mjs scan --apply` 登记；
    - 跑 `npm run check` 和 `npm run typecheck`。
 
 ## 1. 一句话定位
@@ -26,37 +26,39 @@
 | 位置 | 放什么 |
 |---|---|
 | `config/pipeline.json` | 主配置：规格、素材根、生成 preset、混剪节拍 |
-| `run.mjs` | 一键入口：`scan / generate / quality / mix / all / stills / check` |
+| `run.mjs` | 一键入口：`scan / creative / quality / mix / all / stills / check` |
 | `modules/scan` | 扫描、增量、打标、场景切分、缩略图 |
-| `modules/generate` | 生成素材目录、变体、渲染调度 |
+| `modules/generate` | 共享目录与渲染工具：catalog、props、reindex、静帧 |
+| `modules/creative` | 创意工程：引擎 schema、参数校验、编译、渲染、审核 |
+| `creative` | 创意内容包（gitignore）：引擎实现 + 项目/变体；`registry.ts` 由初始化或 scan 生成 |
 | `modules/quality` | pHash、观感相似度、感知聚类、覆盖矩阵、质量闸门 |
 | `modules/mix` | EDL 规划、去重、渲染 |
 | `modules/lib` | 配置、ffmpeg、public 链接、Remotion 封装 |
 | `workbench` | 本地 Web 工作台：素材/成片/质量浏览、任务队列、实时日志 |
 | `projects` | 具体成片项目：TTS、分镜脚本、混音与项目说明 |
-| `src` | Remotion composition：`PipelineAsset` 与 `MixVideo` |
-| `src/generated` | 6 个 preset、注册表、图标清单 |
-| `common` | 上游资源快照：engine / components / vendor / assets / shots |
+| `src` | Remotion composition：`PipelineAsset`、`MixVideo`、通用类型（`types.ts` 只放 `EngineProps / PresetMeta / AssetProps`） |
+| `common` | 上游资源快照：只剩 `engine/` 与 `vendor/` |
+| `assets` | 素材库（内容部署，gitignore；`config/pipeline.json` 的 `assets.roots` 可配多根） |
 | `data` | 运行产物：素材库、目录、EDL、签名库（gitignore） |
 | `out` | 生成素材、静帧、分段、成片（gitignore） |
 | `public` | 渲染静态根，运行时自动建链接（gitignore） |
 | `docs` | 规则、经验、流程、模块、依赖、决策、排错 |
-| `tools` | `doctor.mjs` 环境体检、`check.mjs` 工作区体检 |
+| `tools` | 体检与内容同步：`doctor`、`check`、`assets`、`sync`、`projects` |
 
 ## 3. 六条硬规则
 
 1. **实拍是事实，生成是示意。** 生成片段不能冒充实拍；手机 UI 等示意画面必须带「示意」标记。品牌图标只作类别示意，不表示合作或背书。
 2. **确定性。** `src/` 里的动画只能由 `useCurrentFrame()` / `useVideoConfig()` 推导；禁止 `Date.now`、`new Date`、`Math.random`。随机用 `keyedRandom(seed, key)` 或 Canvas 引擎的 `rng(seed)`。`npm run check` 会扫。
-3. **不自己发明素材。** 图标、字体、地图、音乐、镜头卡、动效实现，先用 `common/` 里已有的；新增素材必须登记 `common/assets/REGISTRY.json` 并写入 `CREDITS.md`。许可不清楚的素材不用。
+3. **不自己发明素材。** 图标、字体、地图、音乐、镜头卡、动效实现，先用已有清单与 `common/`；新增二进制素材必须用 `node tools/assets.mjs scan --apply` 登记到 `creative/shared/assets.manifest.json` 并更新 `creative/shared/CREDITS.md`。素材二进制与清单都不进核心仓库，通过 `npm run assets:fetch` 或用户目录部署。许可不清楚的素材不用。
 4. **配置优先。** 路径、规格、preset、节拍、时长都通过 `config/pipeline.json` 或 CLI 参数指定；不要把作品参数硬编码进模块。
-5. **先查现成，再写。** 顺序：Remotion 官方包 → 成熟第三方库 → `common/vendor` / `common/components` → 自己写。新依赖必须先登记 `docs/dependencies.json`，否则 `check` 失败。
+5. **先查现成，再写。** 顺序：Remotion 官方包 → 成熟第三方库 → `common/vendor` / `common/engine` → 自己写。新依赖必须先登记 `docs/dependencies.json`，否则 `check` 失败。
 6. **先有主题，再动手。** 每次出片先能用一句话说清「这条片子讲什么画面」。删掉后画面不受影响的内容，就是叠加，应当删除。
 
 ## 4. 数据契约
 
 - `data/footage.manifest.json`：全量素材索引，含 `status: active | missing`。
 - `data/library.json`：给模块三用的活跃素材数组，含 `scenes[]`、`tags`、`crop`、`publicSrc`。
-- `data/catalog.json`：生成素材目录，含 `publicMp4`、`publicWebm`、`props`、`duration`、`quality`。
+- `data/catalog.json`：生成素材目录，含 `publicMp4`、`publicWebm`、`props`、`duration`、`quality`；创意图材另有 `creativeId / variantId / creativeVersion / paramsHash`。
 - `data/quality/report.json`：质量与覆盖报告；`out/quality/report.md`：人读版。
 - `data/edl/mix-*.json`：成片时间线；`beats[]` 是叙事窗口，镜头可跨节拍，`beats[].shots[]` 允许为空。`data/edl/signatures.json`：跨成片去重记录。
 - `out/assets`：生成素材；`out/stills`：静帧；`out/segments`：分段；`out/mix-*.mp4`：成片。
@@ -72,7 +74,7 @@
 3. `docs/DECISIONS.md`：影响架构或流程的选择，写清背景、选项、结论、代价。
 4. `docs/MODULES.md`：新增或修改 preset/模块后更新。
 5. `docs/DEPENDENCIES.md` + `docs/dependencies.json`：新增依赖后同步。
-6. `CREDITS.md` + `common/assets/REGISTRY.json`：新增素材后同步。
+6. `creative/shared/CREDITS.md` + `creative/shared/assets.manifest.json`：新增素材后同步（`node tools/assets.mjs scan --apply`）。
 
 新会话不要求记住上一个会话，只要求按这套文档恢复上下文。
 
@@ -83,7 +85,17 @@ npm run doctor
 npm run workbench
 node run.mjs all
 node run.mjs scan --check
-node run.mjs generate --only platform-orbit --variants 1
+node run.mjs sync --check
+node run.mjs sync --apply
+node run.mjs projects scan
+npm run assets:scan
+npm run assets:check
+node run.mjs creative scan
+node run.mjs creative validate --strict
+node run.mjs creative scan --write-registry
+node run.mjs creative plan --creative text-display
+node run.mjs creative build --creative text-display
+node run.mjs creative preview --creative text-display --variant char-rise
 node run.mjs quality --report-only
 node run.mjs quality --strict
 node run.mjs mix --duration 15 --outputs 2 --seed 20261108
@@ -104,14 +116,13 @@ npm run typecheck
 
 ## 8. 关于 common/
 
-`common/` 是从上游工作区搬来的资源快照，保持原目录关系：
+`common/` 是核心里的上游资源快照，只剩两棵子树：
 
-- `common/engine` → `common/vendor`；
-- `common/components/reel/v2` → `common/engine`、`common/vendor`；
-- `common/assets/fonts` 通过 `public/assets` 链接供 `staticFile` 使用；
-- `common/shots` 是镜头卡文档，不是运行时代码。
+- `common/engine` 是共享运动/字体/Canvas 原语（字体清单不在这里，见 `creative/shared/fonts.ts`）；
+- `common/vendor` 是第三方/上游实现；
+- 素材库是独立的 `assets/`（gitignore，`config/pipeline.json` 的 `assets.roots` 可配多根，按顺序合并；清单在 `creative/shared/assets.manifest.json`），不属于核心源码；镜头卡与素材许可在 `creative/shared/`。
 
-不要在 `common/` 里直接实现业务逻辑。需要升级上游时，整目录替换 `common/{engine,components,vendor,assets,shots}`，然后跑 `npm run doctor`、`npm run typecheck`、`node run.mjs generate --variants 1 --force` 验证。
+不要在 `common/` 里直接实现业务逻辑，也不要往核心提交具体创意实现。升级上游时整目录替换 `common/{engine,vendor}`，然后跑 `npm run sync -- --check`、`npm run doctor`、`npm run typecheck`、`node run.mjs creative build --force` 验证。
 
 ## 9. 不确定时
 

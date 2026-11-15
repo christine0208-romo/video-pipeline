@@ -2,7 +2,7 @@
 
 ## 政策
 
-1. 顺序：Remotion 官方包 → 成熟第三方库 → `common/vendor` / `common/components` → 自己写。
+1. 顺序：Remotion 官方包 → 成熟第三方库 → `common/vendor` / `common/engine` → 自己写。
 2. 新增依赖必须锁版本，并在 `docs/dependencies.json` 的 `approved` 登记。
 3. 动画相关依赖必须先做确定性测试：同一 composition 渲染 frame 0/15/30 两次，逐字节一致；不一致只能作设计参考。
 4. 未登记的依赖 `npm run check` 会失败。

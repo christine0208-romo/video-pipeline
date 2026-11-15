@@ -14,71 +14,53 @@ node run.mjs scan
 ## 2. 新增/更换实拍素材
 
 1. 把素材放进任意一个 `footage.roots`；可加多个 root。
-2. 需要人工标签时，在 root 下放 `tags.json`：
-   ```json
-   {
-     "card-show-3.mp4": {
-       "platform": "WhatsApp",
-       "subjects": ["SIM卡", "手机"],
-       "focus": [0.5, 0.42],
-       "usable": [{ "start": 1.2, "end": 6.4 }]
-     }
-   }
-   ```
-3. `node run.mjs scan`。
-4. 看 `data/thumbs/*-sheet.jpg` 与 `data/library.json` 的标签。
-5. 新增素材默认会进 `library.json`；缺失素材标 `missing`，不会删除旧记录。
+2. `node run.mjs scan`。
+3. 看 `data/thumbs/*-sheet.jpg` 与 `data/library.json`。
+4. 新增素材默认会进 `library.json`；缺失素材标 `missing`，不会删除旧记录。
 
-## 3. 新增实拍标签规则
+## 3. 新增/更换素材库素材
 
-改 `modules/lib/tagger.mjs` 的字典：
+1. 把文件放进任意一个素材根（默认 `assets/`，或 `config/pipeline.json` / `config/local.json` 的 `assets.roots`）。
+2. `node tools/assets.mjs scan --apply` 登记；补 `license` 后跑 `node tools/assets.mjs check --strict`。
+3. `node run.mjs scan` 重建 `public/assets` 合并树。
 
-- `PLATFORMS`：平台名与关键词；
-- `SUBJECTS` / `ACTIONS` / `MOODS` / `SCALES`：标签与关键词。
+## 4. 新增生成引擎
 
-短英文词（≤4 字符）走词边界匹配，避免 `ig` 命中 `signup`。中文按子串匹配。
-
-改完跑 `node run.mjs scan`；未变素材也会重新打标。
-
-## 4. 新增生成 preset
-
-1. 在 `src/generated/presets/` 新建 `<id>.tsx`，组件接收 `PresetProps`。
-2. 在 `src/generated/presets.json` 登记 `{ id, supportsAlpha, description }`。
-3. 在 `src/generated/registry.ts` 的 `COMPONENTS` 映射中注册。
-4. 在 `modules/generate/catalog.mjs` 的 `variantProps()` 里加变体参数（图标组、配色、seed）。
-5. `node run.mjs generate --only <id> --variants 1`。
+1. 默认在创意工程的 `engine/` 新建 `index.tsx`（导出 `Component`）与 `engine.json`（参数 schema）；只有被第二个创意复用时才移到 `creative/engines/<engine>/`。
+2. `creative.json` 写 `engine: "./engine"`（本地）或 `engine: "<engine>"`（共享）。
+3. 运行 `node run.mjs creative scan --write-registry` 生成注册表。
+4. 新建或更新一个创意工程引用该引擎。
+5. `node run.mjs creative validate --strict`、`creative plan --creative <id>`。
 6. 看 `out/stills/assets/` 静帧；需要透明叠加时检查 WebM alpha。
-7. 更新 `docs/MODULES.md` 与 `docs/LESSONS.md`（如有新坑）。
+7. 更新 `docs/MODULES.md`、`docs/CREATIVE.md` 与 `docs/LESSONS.md`。
 
-命名：preset id 用 kebab-case，不用中文；画面上不出现内部标签。
+命名：引擎与创意 id 用 kebab-case，不用中文；画面上不出现内部标签。
 
-## 4.1 新增或修改 recipe
+## 4.1 新增或修改创意
 
-1. 在 `src/generated/recipes.json` 增加条目：`id / code / name / engine / preset / layer / beatRoles / durationFrames / params / axes`。
-2. `preset` 只能是已注册的组件（当前 `text-atom`、`transition-atom`、`particle-atom`、`camera-scene`）。
-3. `axes` 里的 `palette / seed / text / keyword / countTo` 会按变体序号取值。
-4. 在 `config/pipeline.json` 的 `generate.recipes` 加入 id。
-5. `node run.mjs generate --recipe <id> --variants 1 --force`。
-6. 看 `out/stills/assets/`，再 `node run.mjs generate --review --status draft`。
-7. 通过后 `node run.mjs generate --approve <id>` 或 `--approve all`。
-8. 更新 `docs/MODULES.md` 与 `docs/MOTION_PROMPTS.md`。
+1. 在 `creative/<id>/creative.json` 写意图、引擎、适用实拍条件与默认参数。
+2. 在 `variants/*.json` 用 `style` + `items` 描述 1-n 条素材；文案、调色板、故障序号等按条覆盖。
+3. `node run.mjs creative validate --strict`。
+4. `node run.mjs creative plan --creative <id>` 看参数解析。
+5. `node run.mjs creative build --creative <id> --dry-run`，再实际构建。
+6. 工作台 `#/creative` 里预览、改参数、重新构建。
+7. 更新 `docs/CREATIVE.md` 的工程清单。
 
 ## 4.2 审核与退役
 
 ```bash
-node run.mjs generate --review --status draft
-node run.mjs generate --approve <id,...>
-node run.mjs generate --reject <id,...>
+node run.mjs creative review --creative <id> --status approved
+node run.mjs creative review --id <assetId> --status retired
 ```
 
 - `draft` 不会进入混剪；`approved` 才会。
 - `retired` 保留文件，不参与混剪；需要重新启用时再 approve。
-- `--approve all` 只批准当前所有 draft；`--reject all` 只退役当前所有 draft。
+- 按变体批量审核会跳过已退役素材；单条 `--id` 可显式恢复。
 - 临时预览未审核素材：`node run.mjs mix --allow-draft ...`。
 
 ## 4.3 音效与 BGM
 
-- 音效索引：`common/assets/sfx/index.json`；BGM 索引：`common/assets/music/index.json`。
+- 音效索引：`creative/shared/audio/sfx.index.json`；BGM 索引：`creative/shared/audio/music.index.json`（音频文件在素材根 `assets/{sfx,music}`）。
 - 默认 `mix.music` 为 `auto`，`mix.sfx.enabled` 为 `true`。
 - 关闭：`--no-music` / `--no-sfx`；指定：`--music auto|<id>|<path>`。
 - 新增、替换、归一化和选曲规则见 `docs/AUDIO.md`。
@@ -93,16 +75,16 @@ node run.mjs fission --works 3 --seed 20261108 --duration 12
 node run.mjs fission --work t1 --duration 6 --with-assets --per-layer 1,1,1
 
 node run.mjs mix --work work-t1 --duration 6
-node run.mjs generate --list-works
-node run.mjs generate --share <id,...>
-node run.mjs generate --clean-work work-t1
+node run.mjs creative list-works
+node run.mjs creative share <id,...>
+node run.mjs creative clean-work work-t1
 ```
 
 - 默认 `fission.generateAssets = false`：只用 shared + 实拍库；`--per-layer` 在默认模式下会被忽略。
-- `--with-assets` 才按 work seed 从 recipe pool 选材，素材 `scope=work`，自动 `approved`。
+- `--with-assets` 才按 work seed 从创意变体池选材，素材 `scope=work`，自动 `approved`。
 - `mix --work` 不再强制专属素材；需要时加 `--require-work-asset`。
 - 不同 work 专属素材相互隔离；`--share` 才进入 shared。
-- `--clean-work` 默认 dry-run，`--force` 才删除。
+- `creative clean-work` 默认 dry-run，`--force` 才删除。
 - 生成素材分类/完整性规则见 `docs/ASSETS.md`。
 - 详见 `docs/FISSION.md`。
 
@@ -116,9 +98,9 @@ node run.mjs quality --edl mix-20261119-1
 node run.mjs quality --strict
 ```
 
-- `generate` / `fission` 渲染后自动分析；`quality` 可单独重算或复查。
+- `creative build` / `fission` 渲染后自动分析；`quality` 可单独重算或复查。
 - 报告：`data/quality/report.json`、`out/quality/report.md`。
-- 近似重复先判断是否共用底图（camera 系 recipe 与其 base preset 会聚在一起），不是所有近邻都要改。
+- 近似重复先判断是否共用底图（camera 系素材与其 base preset 会聚在一起），不是所有近邻都要改。
 - `quality.ok = false` 的素材默认不进入混剪；`--allow-low-quality` 只做预览。
 - 详见 `docs/QUALITY.md`。
 
@@ -166,11 +148,22 @@ node run.mjs check
 2. 整目录替换 `common/{engine,components,vendor,assets,shots}`。
 3. `npm run doctor`。
 4. `npm run typecheck`。
-5. `node run.mjs generate --variants 1 --force`，看静帧。
+5. `node run.mjs creative build --force`，看静帧。
 6. `node run.mjs mix --duration 12 --outputs 1 --dry-run`。
 7. 更新 `CREDITS.md` / `docs/DEPENDENCIES.md`（如有新资源/依赖）。
 
 ## 8. 重置运行数据
+
+推荐用受管命令清空生成产物（默认 dry-run）：
+
+```bash
+node run.mjs creative reset
+node run.mjs creative reset --apply --force
+```
+
+它只删除 catalog 生成条目、props、`out/assets`、静帧、`out/creatives`、质量报告、EDL 与 works 配置；实拍索引、TTS 和成片文件保留。
+
+彻底重建运行目录：
 
 ```bash
 rm -rf data out public
@@ -180,7 +173,7 @@ rm -rf data out public
 
 ```bash
 node run.mjs scan
-node run.mjs generate
+node run.mjs creative build
 node run.mjs mix
 ```
 
@@ -207,15 +200,15 @@ node run.mjs cache clean
 node run.mjs cache clean --force
 ```
 
-核心框架、项目 manifest 和外部输入的边界见 `config/components.json` 与项目 `project.json`。`data/`、`out/`、`public/` 都是运行区域，不应作为核心源码包提交。
+核心框架、项目 manifest 和外部输入的边界见 `config/components.json` 与 `projects/*/project.json`（用 `node run.mjs projects scan` 发现和校验）。`data/`、`out/`、`public/` 都是运行区域，不应作为核心源码包提交。
 
 ## 9. 渲染与复查
 
 ```bash
-node run.mjs generate --only platform-orbit --variants 1
-node run.mjs generate --recipe text-char-rise,transition-glitch --variants 1 --force
-node run.mjs generate --review --status draft
-node run.mjs generate --approve all
+node run.mjs creative scan
+node run.mjs creative build --creative icon-neon --force
+node run.mjs creative preview --creative text-display --variant char-rise
+node run.mjs creative review --creative text-display --status approved
 node run.mjs quality --report-only
 node run.mjs mix --duration 12 --outputs 1 --seed 20261108 --dry-run
 node run.mjs mix --duration 12 --outputs 1 --seed 20261108

@@ -50,7 +50,6 @@ export type MixAudio = {
 export type MixShot = {
   kind: "footage" | "generated" | "image";
   assetId: string;
-  recipeId?: string;
   src: string;
   sourceFps?: number;
   in?: number;

@@ -9,17 +9,6 @@
         {"name":"check","flag":"check","label":"只检查是否有变化","type":"checkbox"}
       ]
     },
-    "generate": {
-      "label": "生成素材",
-      "fields": [
-        {"name":"only","flag":"only","label":"只生成 preset","type":"text","placeholder":"platform-orbit"},
-        {"name":"recipe","flag":"recipe","label":"只生成 recipe","type":"text","placeholder":"text-char-rise"},
-        {"name":"variants","flag":"variants","label":"每组变体数","type":"number","placeholder":"配置值"},
-        {"name":"force","flag":"force","label":"强制重渲","type":"checkbox"},
-        {"name":"dryRun","flag":"dry-run","label":"只规划不渲染","type":"checkbox"},
-        {"name":"review","flag":"review","label":"运行后列出审核状态","type":"checkbox"}
-      ]
-    },
     "quality": {
       "label": "质量分析",
       "fields": [

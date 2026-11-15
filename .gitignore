@@ -1,10 +1,14 @@
-node_modules/
-data/
-out/
-public/
-.cache/
-release/
-projects/
-config/local.json
-.claude/settings.local.json
+/node_modules/
+/data/
+/out/
+/public/
+/.cache/
+/release/
+/projects/
+/creative/
+# 素材库：内容部署，可配置多根（config/pipeline.json assets.roots）
+/assets/
+/common/assets/
+/config/local.json
+/.claude/settings.local.json
 *.log

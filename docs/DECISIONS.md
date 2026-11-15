@@ -226,3 +226,80 @@
   - 默认裂变的“作品专属感”下降，差异更多依赖编排、variation 与素材组合；
   - 分类与系列字段目前是初步版本，完整 taxonomy / cue 语义等用户设计稿；
   - 完整性检查仍以指标为主，最终需要人工抽帧复查。
+
+## ADR-020 · 创意工程作为生成素材的唯一来源
+
+- 背景：生成素材由 `recipes.json` 大数组 + preset 列表产出，参数、变体、文案埋在代码里，用户无法按创意微调和管理；素材库像一次性写好的黑盒。实拍有 scan 与外部目录，混剪有项目包，生成素材缺少对等的工程单位。
+- 选项：
+  1. 继续维护 recipes.json，只加项目级覆盖；
+  2. 把创意拆成目录 + 参数 schema，但新旧两套长期并存；
+  3. 以创意工程为唯一来源，迁移完成后删除旧 preset/recipe 生成路径。
+- 结论：采用 3：
+  - `creative/engines/*.json` 声明引擎参数（中文 label、类型、范围、默认值）与 styles；
+  - `creative/<id>/creative.json` + `variants/*.json` 声明意图、内容与 1-n 个变体，每个 item 编译一条素材；
+  - 产物强制带 `creativeId / variantId / creativeVersion / paramsHash`，无出处不能保持 approved；
+  - CLI `node run.mjs creative scan|validate|plan|build|preview|review|reset`；
+  - 工作台 `#/creative` 由 schema 生成控件，支持保存、预览、构建、审核；
+  - 先迁移文字（text-display），再迁移图标/粒子/转场/镜头/场景，最后删除 `recipes.json` 与 `modules/generate/{index,recipes}.mjs`，清空旧产物重建。
+- 代价：
+  - 迁移期需要逐组对比旧素材；
+  - 引擎 schema 是组件 props 的镜像，新增参数要两边同步；
+  - 工作台成为必要入口，纯命令行仍保留但编辑体验较弱；
+  - 切换时清空 catalog / props / out/assets，审批与质量历史不保留。
+
+## ADR-021 · 核心与内容/素材彻底分层
+
+- 背景：`docs/PLAN-CORE-CLEAN.md` 的判定标准是「删掉 `creative/` 与 `common/assets/` 后 core 仍能安装、typecheck、check、doctor；放回内容后能自动识别并生产」。此前 core 仍带着调色板枚举、引擎 props、字体清单、素材清单、镜头卡和具体项目引用，clone 下来无法只换内容包。
+- 选项：
+  1. 只把二进制移出仓库，类型/清单留在 core；
+  2. 内容与清单整体移入内容包，core 只留通用透传类型与扫描命令；
+  3. 拆成独立 npm 包。
+- 结论：采用 2：
+  - `src/types.ts` 只留 `EngineProps / PresetMeta / AssetProps`（均带索引签名）；引擎精确 props 移到 `creative/shared/types.ts`，注册表统一导出 `React.FC<EngineProps>` 并在赋值处断言；
+  - `FONT_MANIFEST` 移到 `creative/shared/fonts.ts`，由 `creative/registry.ts` re-export，缺失时导出空数组；`GeneratedAsset` 与 `MixVideo` 都从注册表取；
+  - 素材清单移到 `creative/shared/assets.manifest.json`；`tools/assets.mjs` 新增 `scan`（`--apply / --prune / --check`）与 `--strict` 许可闸门；
+  - 音频索引、镜头卡、素材许可移到 `creative/shared/`；`common/` 只剩 `engine/` 与 `vendor/`；
+  - 新增 `node run.mjs sync`（覆盖注册表 + 素材清单 + 可选实拍），`npm run check` 走 `sync --check`，`creative build` 在注册表过期时自动重写；
+  - 新增 `node run.mjs projects scan`；`config/components.json` 不再列具体项目；
+  - 没有内容包或素材时所有命令给出“无内容”提示并成功，只有需要渲染素材的阶段才报错。
+- 代价：
+  - 引擎内部保持精确类型，注册表侧必须断言，泛化会削弱一点类型安全；
+  - 内容包成为 typecheck 的硬依赖，clone 后依赖 postinstall 生成空注册表；
+  - 新增素材要显式 `scan --apply`，不再“放进目录就生效”，换来许可闸门与可迁移清单；
+  - `common/shots`、`common/assets/REGISTRY.json`、`common/assets/{sfx,music}/index.json` 这些旧路径失效，文档与脚本已同步。
+
+## ADR-022 · 素材库独立成根，支持多目录合并
+
+- 背景：ADR-021 之后素材仍部署在 `common/assets`，使 `common/` 名义上“只剩 engine/vendor”却在运行后多出一个素材目录；且单根目录限制了“用户已有素材分散在多个位置”的用法。实拍库早已支持 `footage.roots` 多根，素材库没有对应能力。
+- 选项：
+  1. 保持 `common/assets` 单根，只改文档；
+  2. 独立成 `assets/` 单根；
+  3. 独立成可配置多根，按顺序合并，创意只写相对路径。
+- 结论：采用 3：
+  - `config/pipeline.json` 增加 `assets.roots`（默认 `["assets"]`），`cfg.assetRoots` 解析、`cfg.paths.assets` 为首根；`--asset-roots` 可临时覆盖；
+  - `public/assets` 改为实体目录，按根顺序为每个顶层项建立 junction（顶层文件用硬链接，失败则复制）；同名项前者优先并告警；素材根移除后自动清理失效链接；
+  - 清单 `creative/shared/assets.manifest.json` 去掉 `root` 字段，路径一律相对素材根；`check` 在任一根命中即视为存在，`fetch/scan --apply` 写入首根；
+  - 创意引用改为相对路径：新增 `assetPath()`（`common/engine`），引擎与 `IconTile`/`clips`/`icon-neon` 用它把 `icons/x.svg` 规范为 `assets/...`，`assets/` 前缀与绝对 URL 原样保留；
+  - 音频索引按 `assets.roots` 查找，EDL 的 `music/sfx` src 统一为 `assets/...`；
+  - `doctor`/`check`/工作台按多根报告素材状态。
+- 代价：
+  - 合并按相对路径去重：同名文件由前一个根优先（会告警）；同名目录会递归合并，所以第二个根里的新文件仍然可见；
+  - `public/assets` 从单条 junction 变成“整目录能链接就链接、冲突目录递归合并”的实体树，`check`/`doctor` 的判定同步放宽；
+  - 跨盘的顶层文件无法建硬链接时退化为复制，需要重跑 scan/sync 才更新；
+  - 旧 EDL 里的 `music/...` 仍保留可读（`public/music` 仍指向第一个含 music 的根），新 EDL 使用 `assets/music/...`。
+
+## ADR-023 · 移除实拍自动打标与 recipe 遗留概念
+
+- 背景：`tagger.mjs` 用文件名/路径关键词猜标签；实测 26 条实拍只有 `actions: ["展示"]`，创意 `appliesTo.footageTags` 全为空。标签唯一被消费的地方是裂变时按主题筛实拍（不足 5 条回退全池）与工作台展示/搜索。内容持续变化时，关键词表无法维护，标签也无法人工管理。
+- 选项：
+  1. 保留并扩充词表；
+  2. 改为纯人工 sidecar；
+  3. 删除自动打标与主题筛选。
+- 结论：采用 3：
+  - 删除 `modules/lib/tagger.mjs`、`footage.sidecars` 配置、`data/human-tags.json` 支持；
+  - 删除 `mix.footageTags` 过滤与 `variation.footageThemes`；
+  - 工作台不再显示/搜索标签；scan 自动清理旧条目的 `tags` / `orientation` 字段；
+  - 同时清理已删除功能的遗留：catalog/EDL 的 `recipeId`、`mix.maxPerRecipe` → `mix.maxPerCreative`、质量轴里的 `Recipe`；`variation.mjs` 改为按 `category` 驱动，去掉文案/引擎键/`T06`/`T08` 硬编码与已删除的 `src/generated/assets.json`。
+- 代价：
+  - 失去按主题自动挑实拍的能力；需要时在变体或项目层自行分组，或以后做显式人工标签；
+  - 旧 catalog/EDL 里的 `recipeId` 字段被忽略，不再参与任何行为。

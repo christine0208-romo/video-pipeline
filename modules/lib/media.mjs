@@ -182,14 +182,6 @@ export function makeSheet(files, out) {
   return runCapture(FFMPEG, args).status === 0;
 }
 
-export function orientation(width, height) {
-  if (!width || !height) return "unknown";
-  const ratio = width / height;
-  if (ratio > 1.2) return "horizontal";
-  if (ratio < 0.83) return "vertical";
-  return "square";
-}
-
 export function typeOf(file) {
   const ext = `.${file.split(".").pop()?.toLowerCase() ?? ""}`;
   if (VIDEO_EXT.has(ext)) return "video";

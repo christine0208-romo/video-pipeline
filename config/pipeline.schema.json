@@ -4,7 +4,7 @@
   "title": "Video Pipeline Project Policy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["spec", "dataDir", "outDir", "runtime", "tools", "footage", "generate", "mix", "fission", "quality"],
+  "required": ["spec", "dataDir", "outDir", "runtime", "tools", "footage", "mix", "fission", "creative", "quality"],
   "properties": {
     "spec": {
       "type": "object",
@@ -38,15 +38,22 @@
         "ffprobe": {"type": "string", "minLength": 1}
       }
     },
+    "assets": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["roots"],
+      "properties": {
+        "roots": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}}
+      }
+    },
     "footage": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["roots", "extensions", "exclude", "sidecars", "cropDetect", "sceneSplit", "thumbs"],
+      "required": ["roots", "extensions", "exclude", "cropDetect", "sceneSplit", "thumbs"],
       "properties": {
         "roots": {"type": "array", "items": {"type": "string", "minLength": 1}},
         "extensions": {"type": "array", "items": {"type": "string", "pattern": "^\\.[a-z0-9]+$"}},
         "exclude": {"type": "array", "items": {"type": "string"}},
-        "sidecars": {"type": "array", "items": {"type": "string"}},
         "cropDetect": {"type": "boolean"},
         "sceneSplit": {
           "type": "object",
@@ -71,29 +78,16 @@
         }
       }
     },
-    "generate": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["presets", "recipes", "variantsPerPreset", "variantsPerRecipe", "duration", "formats"],
-      "properties": {
-        "presets": {"type": "array", "items": {"type": "string"}},
-        "recipes": {"type": "array", "items": {"type": "string"}},
-        "variantsPerPreset": {"type": "integer", "minimum": 1},
-        "variantsPerRecipe": {"type": "integer", "minimum": 1},
-        "duration": {"type": "number", "exclusiveMinimum": 0},
-        "formats": {"type": "array", "items": {"enum": ["mp4", "webm-alpha"]}}
-      }
-    },
     "mix": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["duration", "outputs", "seed", "maxPerAsset", "maxPerRecipe", "minGap", "generatedRatio", "shotLength", "beatJitter", "minShots", "maxShots", "allowDraft", "allowLowQuality", "perceptualDedupe", "requireWorkAsset", "bpm", "music", "sfx", "beats"],
+      "required": ["duration", "outputs", "seed", "maxPerAsset", "maxPerCreative", "minGap", "generatedRatio", "shotLength", "beatJitter", "minShots", "maxShots", "allowDraft", "allowLowQuality", "perceptualDedupe", "requireWorkAsset", "bpm", "music", "sfx", "beats"],
       "properties": {
         "duration": {"type": "number", "exclusiveMinimum": 0},
         "outputs": {"type": "integer", "minimum": 1},
         "seed": {"type": "integer"},
         "maxPerAsset": {"type": "integer", "minimum": 1},
-        "maxPerRecipe": {"type": "integer", "minimum": 1},
+        "maxPerCreative": {"type": "integer", "minimum": 1},
         "minGap": {"type": "number", "minimum": 0},
         "generatedRatio": {"type": "number", "minimum": 0, "maximum": 1},
         "shotLength": {
@@ -119,6 +113,18 @@
       }
     },
     "fission": {"type": "object"},
+    "creative": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root", "maxAssetsPerVariant", "autoQuality", "formats", "pool"],
+      "properties": {
+        "root": {"type": "string", "minLength": 1},
+        "maxAssetsPerVariant": {"type": "integer", "minimum": 1},
+        "autoQuality": {"type": "boolean"},
+        "formats": {"type": "array", "items": {"enum": ["mp4", "webm-alpha"]}},
+        "pool": {"type": ["string", "array"]}
+      }
+    },
     "quality": {"type": "object"}
   }
 }

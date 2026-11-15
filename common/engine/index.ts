@@ -6,5 +6,6 @@ export type { Draw } from "./CanvasStage";
 export { ShaderStage } from "./ShaderStage";
 export type { ShaderUniforms } from "./ShaderStage";
 export { WORLD_FRAGMENT } from "./shaders";
-export { useFonts, FONT_MANIFEST, measureCN } from "./fonts";
+export { useFonts, measureCN } from "./fonts";
 export type { FontSpec } from "./fonts";
+export { assetPath } from "./assets";

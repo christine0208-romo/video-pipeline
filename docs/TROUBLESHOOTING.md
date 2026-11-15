@@ -31,7 +31,7 @@ npm run doctor
 - 安装 Chrome，或让 Playwright 的 `chromium_headless_shell` 存在。
 - 或指定：
   ```bash
-  REMOTION_BROWSER="C:/Program Files/Google/Chrome/Application/chrome.exe" node run.mjs generate
+  REMOTION_BROWSER="C:/Program Files/Google/Chrome/Application/chrome.exe" node run.mjs creative build
   ```
 - 离线机器必须提前准备浏览器，Remotion 可能尝试下载。
 
@@ -40,9 +40,8 @@ npm run doctor
 - 看 `data/library.json` 里该素材的 `crop`。
 - 带 `crop` 的素材应该锁定裁剪中心；planner 已经对 `crop` 素材禁用 pan。
 - 如果素材有黑边但 `crop` 为 `null`，说明 `cropdetect` 没识别到：
-  - 降低 `sceneSplit` 无关；调 `footage.cropDetect` 为 `true` 后重跑 `scan --force`；
-  - 或在 `tags.json` 里手工写 `crop` 并重跑 scan（需要扩展 tagger 支持，或直接改 manifest 后重跑 mix）。
-- 仍不理想时，考虑给该素材做裁切 proxy，再作为新素材导入。
+  - 确认 `footage.cropDetect` 为 `true`，然后 `node run.mjs scan --force` 重新探测；
+  - 仍识别不到时，给该素材做裁切 proxy，再作为新素材导入。
 
 ## 透明 WebM 看起来没有 alpha
 
@@ -71,9 +70,10 @@ npm run doctor
 
 ## 没有生成素材
 
-- `node run.mjs generate`。
+- `node run.mjs creative build`。
+- 先 `node run.mjs creative scan` / `validate` 看工程与参数是否有效。
 - 检查 `data/catalog.json` 与 `out/assets/`；catalog 里没有文件的条目会被 mix 跳过。
-- `--only` 只补指定 preset；需要全部时跑 `generate`。
+- `--creative <id>` 只构建指定工程；需要全部时跑 `creative build`。
 
 ## EDL 校验失败：签名重复 / 区间重叠
 
@@ -122,7 +122,7 @@ node run.mjs cache clean
 node run.mjs cache clean --force
 ```
 
-不会自动删除实拍、`common/assets`、catalog、EDL、approved 生成素材或项目成片。
+不会自动删除实拍、素材库 `assets/`、catalog、EDL、approved 生成素材或项目成片。
 
 - 报错说明 `public/xxx` 已存在且指向别处。
 - 不要直接删除；先 `ls -l` / `Get-Item` 看目标，确认是旧链接后改名备份，再重跑。
@@ -149,7 +149,7 @@ node run.mjs cache clean --force
 
 ## 覆盖报告里 variation 轴全是 n/a
 
-- shared preset / recipe 素材本来就没有 variation profile；只有 work 素材会有。
+- shared 创意素材本来就没有 variation profile；只有 work 素材会有。
 - 旧 work 素材（variation 支持之前生成的）也没有；用 `fission --force` 重新生成即可。
 - catalog 里 `variation` 是扁平对象；读取时兼容 `variation.summary` 旧结构。
 

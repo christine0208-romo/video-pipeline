@@ -263,10 +263,10 @@
 - 安全区：上 120、下 220、左右 60–80。
 
 交付：
-- src/generated/presets/<id>.tsx
-- src/generated/presets.json 登记
-- src/generated/registry.ts 注册
-- modules/generate/catalog.mjs 的 variantProps() 加变体
+- creative/engines/<engine>/index.tsx（实现，导出 Component）
+- creative/engines/<engine>/engine.json（参数 schema）
+- 运行 creative scan --write-registry 生成注册表
+- 新建或更新创意工程与变体
 - 先在 out/stills/assets/ 出静帧复查
 ```
 
@@ -412,7 +412,7 @@
 - 新增条目：先补全第 4 节字段，再在对应类别表追加一行。
 - 改参数：升 `version`，旧渲染缓存不失效会命中原参数。
 - 新增引擎：先更新 `docs/MODULES.md`，再登记依赖与素材。
-- 本文件是设计参考，不是运行时数据；真正消费它的配方表在 `src/generated/recipes.json`。
+- 本文件是设计参考，不是运行时数据；真正消费它的配方在 `creative/` 的引擎与变体里。
 
 ## 10. 已实现的 P0 recipe
 

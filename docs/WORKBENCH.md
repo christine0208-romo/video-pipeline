@@ -22,7 +22,8 @@ node workbench/server.mjs --port 4400 --open
 |---|---|
 | 概览 | 实拍/生成素材数、作品数、成片数、当前任务、最近成片、质量摘要 |
 | 素材 | 生成素材与实拍素材；按层 / 类型 / scope / 状态筛选；默认隐藏退役素材；可按系列分组查看变体；缩略图、静帧、视频预览；批准 / 退役 / 提升 shared / 清理 work（dry-run）。类型、状态、质量标记用中文展示。 |
-| 任务 | 选择 scan / generate / quality / mix / fission / check，填参数、预览命令、运行、看实时日志、取消 |
+| 创意 | 创意工程与变体列表；参数控件由 `creative/engines/*.json` 或本地 `engine/engine.json` 生成；逐条编辑文案；保存、预览静帧、构建、批准/退役。构建默认作用于当前变体，每个 item 与产物行也有单独的构建/预览按钮。 |
+| 任务 | 选择 scan / quality / mix / fission / check，填参数、预览命令、运行、看实时日志、取消；创意构建在“创意”页触发 |
 | 成片 | 列表、内嵌播放器、时长/镜头数/大小、打开所在文件夹、复制路径 |
 | 质量 | 复用 `data/quality/report.json` 的聚类、近似重复、覆盖矩阵与质量标记 |
 
@@ -51,6 +52,11 @@ node run.mjs <stage> <args...>
 | GET | `/api/library` | 实拍素材库 |
 | GET | `/api/outputs` | `out/*.mp4` 与对应 EDL 摘要 |
 | GET | `/api/quality` | 质量报告 + `catalogCount`（用于提示报告是否过期） |
+| GET | `/api/creative` | 创意工程、引擎 schema、变体、产物与构建状态 |
+| POST | `/api/creative/:id/variant/:vid` | 保存变体参数 / items / 状态；校验后原子写回 |
+| POST | `/api/creative/:id/build` | 入队 `creative build` |
+| POST | `/api/creative/:id/preview` | 入队 `creative preview`，静帧到 `out/creatives/` |
+| POST | `/api/creative/:id/review` | 入队 `creative review`，批准 / 退役 |
 | GET | `/api/jobs` | 任务列表、当前任务、队列 |
 | POST | `/api/jobs` | `{ stage, args[] }` 创建任务 |
 | GET | `/api/jobs/:id` | 单个任务状态 |

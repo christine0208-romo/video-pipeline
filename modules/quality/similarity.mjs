@@ -19,9 +19,13 @@ const AXES = [
   },
   { key: "series", label: "系列", value: (a) => a.series ?? "n/a" },
   { key: "scope", label: "范围", value: (a) => a.scope ?? "shared" },
-  { key: "engine", label: "引擎", value: (a) => a.engine ?? "preset" },
-  { key: "recipe", label: "Recipe", value: (a) => a.recipeId ?? "preset" },
-  { key: "preset", label: "Preset", value: (a) => a.preset ?? "unknown" },
+  { key: "engine", label: "引擎", value: (a) => a.engine ?? "unknown" },
+  {
+    key: "creative",
+    label: "创意工程",
+    value: (a) => a.creativeId ?? "n/a",
+  },
+  { key: "preset", label: "引擎键", value: (a) => a.preset ?? "unknown" },
   { key: "palette", label: "调色板", value: paletteOf },
   {
     key: "textAlign",
@@ -47,11 +51,6 @@ const AXES = [
     key: "rhythm",
     label: "节奏",
     value: (a) => variationValue(a, "rhythm"),
-  },
-  {
-    key: "footageTheme",
-    label: "素材主题",
-    value: (a) => variationValue(a, "footageTheme"),
   },
 ];
 
@@ -285,14 +284,14 @@ export function buildReport(cfg, allAssets) {
       paletteOf,
       (asset) => asset.layer ?? "scene",
     ),
-    recipeByPalette: buildMatrix(
-      assets.filter((asset) => asset.recipeId),
-      (asset) => asset.recipeId,
+    creativeByPalette: buildMatrix(
+      assets.filter((asset) => asset.creativeId),
+      (asset) => asset.creativeId,
       paletteOf,
     ),
     engineByLayer: buildMatrix(
       assets,
-      (asset) => asset.engine ?? "preset",
+      (asset) => asset.engine ?? "unknown",
       (asset) => asset.layer ?? "scene",
     ),
     scopeByLayer: buildMatrix(

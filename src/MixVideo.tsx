@@ -10,7 +10,8 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import { FONT_MANIFEST, clamp01, easeOutCubic, useFonts } from "./platform";
+import { clamp01, easeOutCubic, useFonts } from "./platform";
+import { FONT_MANIFEST } from "../creative/registry";
 import type { MixAudioMusic, MixEdl, MixShot, ShotTransform } from "./mix/types";
 
 const FPS_FALLBACK = 30;

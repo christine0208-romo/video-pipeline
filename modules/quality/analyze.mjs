@@ -37,16 +37,7 @@ export function qualityConfig(cfg) {
 }
 
 function categoryOf(entry) {
-  if (entry.category) return entry.category;
-  const recipe = entry.recipeId ?? "";
-  if (recipe.startsWith("text-")) return "text";
-  if (recipe.startsWith("transition-")) return "transition";
-  if (recipe.startsWith("particle-")) return "particle";
-  if (recipe.startsWith("camera-")) return "camera";
-  if (entry.preset === "ui-mock") return "ui";
-  if (entry.preset === "kinetic-grid") return "graphic";
-  if (entry.preset) return "icon";
-  return entry.layer ?? "scene";
+  return entry.category ?? entry.layer ?? "scene";
 }
 
 function frameDiff(a, b) {

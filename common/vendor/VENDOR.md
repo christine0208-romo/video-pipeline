@@ -37,7 +37,7 @@
 
 ## 公共素材
 
-见 `common/assets/REGISTRY.json`。摘要：
+见 `creative/shared/REGISTRY.json`（历史归档）与 `creative/shared/assets.manifest.json`（现行清单）。摘要：
 
 | 类别 | 来源 | 许可 |
 |---|---|---|
@@ -55,7 +55,7 @@
 |---|---|
 | 来源 | `D:\Files\AI_Vedio\0_镜头动效库\video-shotcraft\references\shots` |
 | 引入时间 | 2026-11-05 |
-| 许可 | **Apache License 2.0**（全文见 `common/shots/LICENSE`，署名见 `common/shots/ATTRIBUTION.md`） |
+| 许可 | **Apache License 2.0**（全文见 `creative/shared/shots/LICENSE`，署名见 `creative/shared/shots/ATTRIBUTION.md`） |
 | 已引入 | 124 张镜头卡（.md）+ ATTRIBUTION.md |
 | 未引入 | `demos/` 下的 152 个 tsx 与 `_fixtures/`、Ink Press 模板 |
 | 性质 | 卡片是**方法与判例**，不是可运行代码。参数按 1920×1080 横屏标定，竖屏需重标 |

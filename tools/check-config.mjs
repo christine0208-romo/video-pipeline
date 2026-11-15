@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { listEnginePackages } from "../modules/creative/registry.mjs";
+import { scanProjects } from "../modules/lib/projects.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG = path.join(ROOT, "config", "pipeline.json");
@@ -53,58 +55,69 @@ function checkNode(value, schema, location) {
 }
 
 function checkGeneratedManifest() {
-  const presetsFile = path.join(ROOT, "src", "generated", "presets.json");
-  const registryFile = path.join(ROOT, "src", "generated", "registry.ts");
-  const variationFile = path.join(ROOT, "src", "generated", "variation.json");
-  const presets = JSON.parse(readFileSync(presetsFile, "utf8")).presets ?? [];
-  const presetIds = presets.map((item) => item.id);
-  if (new Set(presetIds).size !== presetIds.length) fail("presets.json 存在重复 id");
-  const registryText = readFileSync(registryFile, "utf8");
-  const registryIds = [...registryText.matchAll(/^\s+"([^\"]+)":\s+\w+,/gm)].map((match) => match[1]);
-  if (new Set(registryIds).size !== registryIds.length) fail("registry.ts 存在重复 id");
-  for (const id of presetIds) {
-    const file = existsSync(path.join(ROOT, "src", "generated", "presets", `${id}.tsx`))
-      ? path.join(ROOT, "src", "generated", "presets", `${id}.tsx`)
-      : path.join(ROOT, "src", "generated", "atoms", `${id}.tsx`);
-    if (!existsSync(file)) fail(`preset ${id} 缺少实现文件`);
-    if (!registryIds.includes(id)) fail(`preset ${id} 未在 registry.ts 注册`);
+  const creativeRoot = path.join(ROOT, "creative");
+  if (!existsSync(creativeRoot)) return;
+  const enginesDir = path.join(creativeRoot, "engines");
+  if (existsSync(enginesDir)) {
+    for (const entry of readdirSync(enginesDir, { withFileTypes: true })) {
+      if (entry.isFile() && entry.name.endsWith(".json")) {
+        fail(`creative/engines 下存在旧格式 schema：${entry.name}`);
+      }
+      if (!entry.isDirectory()) continue;
+      if (!existsSync(path.join(enginesDir, entry.name, "engine.json"))) {
+        fail(`引擎 ${entry.name} 缺少 engine.json`);
+      }
+      if (!existsSync(path.join(enginesDir, entry.name, "index.tsx"))) {
+        fail(`引擎 ${entry.name} 缺少 index.tsx`);
+      }
+    }
   }
-  for (const id of registryIds) if (!presetIds.includes(id)) fail(`registry.ts 存在未登记 preset：${id}`);
+  if (existsSync(creativeRoot)) {
+    for (const entry of readdirSync(creativeRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name === "engines") continue;
+      const metaFile = path.join(creativeRoot, entry.name, "engine", "engine.json");
+      if (existsSync(metaFile) && !existsSync(path.join(creativeRoot, entry.name, "engine", "index.tsx"))) {
+        fail(`本地引擎 ${entry.name} 缺少 engine/index.tsx`);
+      }
+    }
+  }
+
+  const packages = listEnginePackages({ paths: { creative: creativeRoot } });
+  const keys = packages.map((item) => item.key);
+  if (new Set(keys).size !== keys.length) fail("creative 引擎注册键重复");
+
+  const registryFile = path.join(creativeRoot, "registry.ts");
+  if (!existsSync(registryFile)) {
+    fail("缺少 creative/registry.ts；运行 npm run creative:init");
+  }
+  const registryText = readFileSync(registryFile, "utf8");
+  const registryKeys = [...registryText.matchAll(/^\s+"([^"]+)":\s*\{/gm)].map(
+    (match) => match[1],
+  );
+  const expected = [...new Set(keys)].sort();
+  const actual = [...new Set(registryKeys)].sort();
+  if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+    fail(
+      `creative/registry.ts 与引擎包不一致：期望 ${expected.join(", ")}，实际 ${actual.join(", ")}`,
+    );
+  }
+
+  if (!keys.length) return;
+
+  const variationFile = path.join(creativeRoot, "shared", "variation.json");
+  if (!existsSync(variationFile)) return;
   const variation = JSON.parse(readFileSync(variationFile, "utf8"));
-  for (const id of variation.camera?.bases ?? []) if (!presetIds.includes(id)) fail(`variation.camera.bases 引用了未知 preset：${id}`);
+  for (const id of variation.camera?.bases ?? []) {
+    if (!keys.includes(id)) fail(`variation.camera.bases 引用了未知 preset：${id}`);
+  }
 }
 
 function checkProjectManifests() {
-  const components = JSON.parse(readFileSync(path.join(ROOT, "config", "components.json"), "utf8"));
-  for (const project of components.projects ?? []) {
-    const projectDir = path.join(ROOT, project.path);
-    const manifestFile = path.join(ROOT, project.manifest);
-    if (!existsSync(projectDir)) {
-      if (project.optional) continue;
-      fail(`项目目录不存在：${project.path}`);
-    }
-    if (!existsSync(manifestFile)) fail(`项目 ${project.id} 缺少 manifest：${project.manifest}`);
-    const manifest = JSON.parse(readFileSync(manifestFile, "utf8"));
-    if (manifest.id !== project.id) fail(`项目 manifest id 不一致：${project.id}`);
-  }
+  const { errors } = scanProjects(path.join(ROOT, "projects"));
+  if (errors.length) fail(errors[0]);
 }
 
 function checkCrossReferences(config) {
-  const presetsFile = path.join(ROOT, "src", "generated", "presets.json");
-  const recipesFile = path.join(ROOT, "src", "generated", "recipes.json");
-  const presets = JSON.parse(readFileSync(presetsFile, "utf8")).presets ?? [];
-  const recipes = JSON.parse(readFileSync(recipesFile, "utf8")).recipes ?? [];
-  const presetIds = new Set(presets.map((item) => item.id));
-  const recipeIds = new Set(recipes.map((item) => item.id));
-  for (const id of config.generate.presets) if (!presetIds.has(id)) fail(`generate.presets 引用了未知 preset：${id}`);
-  for (const id of config.generate.recipes) {
-    if (!recipeIds.has(id)) fail(`generate.recipes 引用了未知 recipe：${id}`);
-    const recipe = recipes.find((item) => item.id === id);
-    if (recipe?.disabled) fail(`generate.recipes 不能启用 disabled recipe：${id}`);
-  }
-  for (const recipe of recipes) {
-    if (!presetIds.has(recipe.preset)) fail(`recipe ${recipe.id} 引用了未知 preset：${recipe.preset}`);
-  }
   const beatRoles = new Set(["hook", "build", "proof", "turn", "close"]);
   const beatTotal = config.mix.beats.reduce((sum, beat) => {
     if (!beatRoles.has(beat.role)) fail(`mix.beats 有未知 role：${beat.role}`);

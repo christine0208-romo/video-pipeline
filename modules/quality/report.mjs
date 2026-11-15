@@ -137,7 +137,7 @@ export function formatMarkdown(report) {
 
   lines.push("## 覆盖矩阵", "");
   lines.push(markdownMatrix("调色板 × 层", report.matrices.paletteByLayer, "palette", "layer"));
-  lines.push(markdownMatrix("Recipe × 调色板", report.matrices.recipeByPalette, "recipe", "palette"));
+  lines.push(markdownMatrix("创意工程 × 调色板", report.matrices.creativeByPalette, "creative", "palette"));
   lines.push(markdownMatrix("引擎 × 层", report.matrices.engineByLayer, "engine", "layer"));
   lines.push(markdownMatrix("范围 × 层", report.matrices.scopeByLayer, "scope", "layer"));
 

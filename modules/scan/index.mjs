@@ -14,7 +14,7 @@ try {
     );
     process.exit(2);
   }
-  console.log("[scan] 下一步：node run.mjs generate");
+  console.log("[scan] 下一步：node run.mjs sync --apply  →  node run.mjs creative build");
 } catch (error) {
   console.error(error.stack || error.message);
   process.exit(1);

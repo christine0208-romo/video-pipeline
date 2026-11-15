@@ -5,7 +5,7 @@ import { deepMerge, PIPELINE_ROOT, loadConfig } from "../lib/config.mjs";
 import { normalizeWorkId, writeJson } from "../lib/fsx.mjs";
 import { seedFrom } from "../lib/rng.mjs";
 import { ensurePublicLinks } from "../lib/public.mjs";
-import { generateWorkAssets } from "../generate/work.mjs";
+import { generateWorkAssets } from "../creative/work.mjs";
 import { pickVariation } from "../generate/variation.mjs";
 
 const parsePerLayer = (value, fallback) => {
@@ -39,7 +39,7 @@ try {
     cfg.flags["per-layer"],
     cfg.fission.assetsPerLayer,
   );
-  const recipePool = cfg.fission.recipePool ?? "all";
+  const creativePool = cfg.creative?.pool ?? "all";
   const generateAssets = Boolean(cfg.fission.generateAssets);
 
   if (!generateAssets && cfg.flags["per-layer"]) {
@@ -69,7 +69,7 @@ try {
         workId,
         workSeed,
         counts,
-        recipePool,
+        creativePool,
         force,
         dryRun,
       });
@@ -82,11 +82,11 @@ try {
         continue;
       }
     } else {
-      profile = pickVariation(workSeed);
+      profile = pickVariation(workSeed, cfg);
       console.log(`[fission] ${workId}: 使用 shared 素材库，不生成 work 素材`);
     }
     console.log(
-      `[fission] ${workId} profile palette=${profile.summary.palette} rhythm=${profile.summary.rhythm} footage=${profile.summary.footageTheme}`,
+      `[fission] ${workId} profile palette=${profile.summary.palette} rhythm=${profile.summary.rhythm}` ,
     );
     if (dryRun) {
       console.log(`[fission] dry-run：跳过 ${workId} 的 mix`);
@@ -102,7 +102,6 @@ try {
         ...(profile.rhythm.shotLength
           ? { shotLength: profile.rhythm.shotLength }
           : {}),
-        footageTags: profile.footageTheme.tags,
         workProfile: profile.rhythm.name,
         variation: profile.summary,
       },

@@ -17,13 +17,33 @@ node run.mjs all
 
 ## 新机器部署（只拉核心框架）
 
-仓库只提交核心框架；`data/`、`out/`、`public/`、`node_modules/`、`.cache/`、`release/`、`projects/`、`config/local.json` 都不入库。项目包按需单独部署。
+仓库只提交核心框架；`data/`、`out/`、`public/`、`node_modules/`、`.cache/`、`release/`、`projects/`、`creative/`、`config/local.json` 都不入库。项目包与创意包按需单独部署。
 
 ```bash
 git clone <repo> video-pipeline
 cd video-pipeline
 npm ci
 npm run doctor
+```
+
+`npm ci` 的 postinstall 会执行 `tools/init-creative.mjs`：没有创意包时生成一个空的 `creative/registry.ts`，保证核心仓库可以 typecheck / check。此时两个素材库都是空的，渲染没有对象。
+
+素材二进制也不入库。按清单部署（字体/图标/音效/BGM）：
+
+```bash
+npm run assets:check
+npm run assets:fetch                  # 只有稳定直链的条目会自动下载
+npm run assets:fetch -- --from D:/my-assets
+```
+
+清单在 `creative/shared/assets.manifest.json`（属于内容包）；没有直链的条目会提示用 `--from` 提供。
+
+部署创意包后，生成注册表再构建：
+
+```bash
+# 把创意包放到仓库根 creative/（含 engine.json、index.tsx、creative.json、variants）
+node run.mjs creative scan --write-registry
+node run.mjs creative build
 ```
 
 准备素材目录后，创建本机覆盖配置（不要改 `config/pipeline.json` 里的共享默认值）：
@@ -37,12 +57,12 @@ cp config/local.example.json config/local.json
 
 ```bash
 node run.mjs scan
-node run.mjs generate
+node run.mjs creative build
 node run.mjs quality
 node run.mjs mix --duration 15 --dry-run
 ```
 
-`config/pipeline.json` 是唯一共享配置；`config/local.json` 只放本机路径/工具覆盖，已被 gitignore。旧 catalog/EDL 不在仓库里，新机器从 scan/generate 重建。
+`config/pipeline.json` 是唯一共享配置；`config/local.json` 只放本机路径/工具覆盖，已被 gitignore。旧 catalog/EDL 不在仓库里，新机器从 scan/creative build 重建。
 
 ## 三个模块
 
@@ -53,26 +73,26 @@ node run.mjs mix --duration 15 --dry-run
 - 人工标签放素材根目录 `tags.json`，键可用相对路径、文件名或素材 id，人工字段优先。
 - `scan --check` 发现新/变更素材时退出码 2，可用于「获取素材前先扫一遍」。
 
-**二、生成素材库**
+**二、创意工程（生成素材）**
 
-| preset | 画面 |
-|---|---|
-| `platform-orbit` | 品牌图标环绕、聚拢、落位 |
-| `social-constellation` | 图标星座、连线与脉冲 |
-| `network-universe` | 点阵世界地图、跨区域连线与光门 |
-| `icon-morph` | 图标之间遮罩擦除式转换 |
-| `ui-mock` | 手机界面示意：短信、通话、账号、注册 |
-| `kinetic-grid` | 透视网格与穿越光门 |
-| `text-atom` | 文字动效原子：T01 / T03 / T06 / T08 |
-| `transition-atom` | 转场原子：flash / wipe / glitch / light-leak |
+`creative/` 是生成素材的唯一来源：一个创意工程 = 意图 + 可调参数 + 1-n 个变体；每个变体产出 1-n 条素材。
 
-- 实底 `H.264 MP4`；支持叠加的 preset 另出 `VP9 + yuva420p` 透明 `WebM`。
-- 按 `preset + props` 哈希缓存；`--only` 只补指定 preset，不会冲掉其它目录条目。
-- `src/generated/recipes.json` 定义 recipe；每个 recipe 展开 palette / seed / text 等变体。
-- `particle-atom` 与 `camera-scene` 由 recipe 驱动：ParticleEngine（P01 / P04 / P05）与 CameraEngine（C01 / C02 / C06 / C09）。
-- 新生成素材默认 `draft`；`generate --review --status draft` 查看，`--approve` / `--reject` 审核。
-- 混剪只消费 `approved`；`--allow-draft` 可临时预览未审核素材。
-- 产物：`out/assets/`、`data/catalog.json`、`out/stills/assets/`。
+| 工程 | 引擎 | 画面 |
+|---|---|---|
+| `text-display` | text | 文字：逐字上浮 / 打字机 / 关键词高亮 |
+| `transitions` | transition | 闪白 / 擦除 / 故障 / 光漏 |
+| `particles` | particle | 漂浮尘埃 / 流体光球 |
+| `camera-moves` | camera | 推近 / 抖动 / 变焦 / 拉远 |
+| `icon-neon` | icon-glitch | 霓虹多平台图标 + 单平台故障 |
+| `scene-orbit` / `scene-constellation` / `scene-network` / `scene-grid` | 场景 preset | 图标环绕 / 星座 / 世界连接图 / 透视网格 |
+| `icon-morph` | icon-morph | 图标遮罩擦除 |
+| `ui-mock` | ui-mock | 手机界面示意 |
+
+- 实底 `H.264 MP4`；支持叠加的引擎另出 `VP9 + yuva420p` 透明 `WebM`。
+- 参数、风格、文案在 `creative/` 里改，不需要碰 React；工作台 `#/creative` 提供 schema 驱动的编辑、预览、构建与审核。
+- 新素材默认 `draft`，混剪只消费 `approved`；`--allow-draft` 可临时预览未审核素材。
+- 产物：`out/assets/`、`data/catalog.json`、`out/stills/assets/`、`out/creatives/`。
+- 完整格式见 `docs/CREATIVE.md`。
 
 **三、混剪**
 
@@ -85,12 +105,12 @@ node run.mjs mix --duration 15 --dry-run
 
 **四、裂变作品（模块二 + 模块三）**
 
-- `fission` 默认按作品编排，直接复用 shared 素材库；`--with-assets` 时才从 recipe pool 生成作品专属素材。
+- `fission` 默认按作品编排，直接复用 shared 创意素材库；`--with-assets` 时才从创意变体池生成作品专属素材。
 - 不同作品默认不复用生成素材；只有 `--share` 手动提升的素材进入 shared。
-- 每个 work 还会从 `src/generated/variation.json` 抽调色板、文本版式/背景/光位/字体/文案、粒子分布/背景、镜头底图/post/grade、转场角度/强度、时长、节奏和实拍主题。
-- 素材以缓存形式留在模块二素材库；同一 work 重跑直接复用，`--force` 才重渲。
+- 每个 work 还会从 `creative/shared/variation.json` 抽调色板、文本版式/背景/光位/字体/文案、粒子分布/背景、镜头底图/post/grade、转场角度/强度、时长、节奏和实拍主题。
+- 素材以缓存形式留在创意素材库；同一 work 重跑直接复用，`--force` 才重渲。
 - `mix --work <id>` 只使用 shared + 当前 work 素材；planner 优先 work-local。
-- `generate --list-works` 查看；`generate --clean-work <id>` 默认 dry-run，`--force` 才删除。
+- `creative list-works` 查看；`creative clean-work <id>` 默认 dry-run，`--force` 才删除。
 - 详见 `docs/FISSION.md`。
 
 **五、音频**
@@ -118,19 +138,19 @@ node run.mjs scan --check
 ```
 
 ```bash
-node run.mjs generate --only platform-orbit --variants 1
+node run.mjs creative scan
 ```
 
 ```bash
-node run.mjs generate --recipe text-char-rise,transition-glitch --variants 1 --force
+node run.mjs creative build --creative icon-neon --force
 ```
 
 ```bash
-node run.mjs generate --review --status draft
+node run.mjs creative preview --creative text-display --variant char-rise
 ```
 
 ```bash
-node run.mjs generate --approve all
+node run.mjs creative review --creative text-display --status approved
 ```
 
 ```bash
@@ -166,15 +186,15 @@ node run.mjs fission --works 1 --seed 20261108 --duration 12 --with-assets --per
 ```
 
 ```bash
-node run.mjs generate --list-works
+node run.mjs creative list-works
 ```
 
 ```bash
-node run.mjs generate --share all-work:work-20261108-1
+node run.mjs creative share all-work:work-20261108-1
 ```
 
 ```bash
-node run.mjs generate --clean-work work-20261108-1
+node run.mjs creative clean-work work-20261108-1
 ```
 
 ```bash
@@ -191,12 +211,6 @@ node run.mjs check
 | `--roots a,b` | 覆盖素材根目录 |
 | `--limit N` | 只处理 N 个新素材（调试） |
 | `--check` | 扫描后有新/变更素材则退出码 2 |
-| `--only p1,p2` | 只生成指定 preset |
-| `--recipe r1,r2` | 只生成指定 recipe（清空 preset 列表） |
-| `--no-recipes` | 本次不生成 recipe |
-| `--variants N` | 每个 preset / recipe 生成几组 |
-| `--variants-recipe N` | 每个 recipe 生成几组 |
-| `--generate-duration N` | 生成片段时长（秒，仅 preset） |
 | `--duration N` | 成片时长（秒） |
 | `--outputs N` | 成片条数 |
 | `--seed N` | 随机种子 |
@@ -204,10 +218,6 @@ node run.mjs check
 | `--dry-run` | 只规划不渲染 |
 | `--stills-only` | 只出静帧 |
 | `--check-only` | 只校验已有 EDL |
-| `--review` | 列出素材状态与静帧路径 |
-| `--approve id1,id2` | 批准资产；`all` 批准全部 draft |
-| `--reject id1,id2` | 退役资产；`all` 退役全部 draft |
-| `--status draft` | 配合 `--review` 过滤状态 |
 | `--allow-draft` | 混剪时允许使用 draft 资产 |
 | `--music auto\|id\|path` | 指定 BGM；`auto` 为自动选曲 |
 | `--no-music` | 关闭 BGM |
@@ -239,15 +249,14 @@ node run.mjs check
 | `footage.cropDetect` | 是否检测黑边并记录裁剪区域 |
 | `footage.sceneSplit` | `enabled/threshold/minShot/pad` |
 | `footage.thumbs` | `enabled/count/width` |
-| `generate.presets` | 启用的 preset |
-| `generate.recipes` | 启用的 recipe |
-| `generate.variantsPerPreset` | 每个 preset 生成几组 |
-| `generate.variantsPerRecipe` | 每个 recipe 生成几组 |
-| `generate.duration` | preset 生成片段时长（秒） |
-| `generate.formats` | `mp4` / `webm-alpha` |
+| `creative.root` | 创意工程目录，默认 `creative` |
+| `creative.pool` | 裂变可选创意工程：`all` 或工程 id 数组 |
+| `creative.maxAssetsPerVariant` | 单个变体的 items 上限 |
+| `creative.autoQuality` | 构建后是否自动质量分析 |
+| `creative.formats` | `mp4` / `webm-alpha` |
 | `mix.duration/outputs/seed` | 成片时长、条数、随机种子 |
 | `mix.maxPerAsset/minGap` | 单素材次数上限、源区间最小间隔 |
-| `mix.maxPerRecipe` | 单条成片中同一 recipe 的使用上限 |
+| `mix.maxPerCreative` | 单条成片中同一创意工程的使用上限 |
 | `mix.generatedRatio` | 生成片段占比倾向 |
 | `mix.allowDraft` | 是否允许混剪使用 draft 素材 |
 | `mix.bpm` | 指定 BPM；为空时用选中曲目的 BPM |
@@ -259,20 +268,23 @@ node run.mjs check
 | `fission.duration` | 作品时长；`null` 使用 `mix.duration` |
 | `fission.generateAssets` | 是否生成作品专属素材；默认 `false` |
 | `fission.assetsPerLayer` | 每个作品 scene / overlay / transition 数量 |
-| `fission.recipePool` | `"all"` 或 recipe id 数组 |
+| `fission.creativePool` | `"all"` 或创意工程 id 数组（读取 `creative.pool`） |
 
 ## 目录
 
 ```text
-config/       主配置
-modules/      scan / generate / mix / fission / lib
-src/          Remotion composition 与 6 个 preset
-common/       上游资源快照（engine / components / vendor / assets / shots）
+config/       主配置（footage.roots 实拍库、assets.roots 素材库）
+modules/      scan / creative / quality / mix / fission / generate(共享工具) / lib
+src/          Remotion composition 与通用类型
+creative/     创意内容包：引擎、变体、shared 素材清单与音频索引（gitignore）
+assets/       素材库，可配置多根，用户与系统共同维护（gitignore）
+projects/     成片项目包（gitignore）
+common/       上游资源快照（engine / vendor）
 data/         素材库、目录、EDL、签名库（gitignore）
 out/          生成素材、静帧、分段、成片（gitignore）
 public/       渲染静态根，运行时自动建链接（gitignore）
 docs/         规则、经验、流程、模块、依赖、决策、排错
-tools/        doctor / check
+tools/        doctor / check / assets / sync / projects
 ```
 
 ## 文档
@@ -311,6 +323,6 @@ tools/        doctor / check
 ## 配置与参数
 
 - 稳定项目策略唯一来源是 `config/pipeline.json`，契约是 `config/pipeline.schema.json`。
-- `node tools/check-config.mjs` 检查 schema、preset/recipe、项目 manifest 和 beat 引用。
+- `node tools/check-config.mjs` 检查 schema、引擎/工程、项目 manifest 和 beat 引用。
 - 临时参数通过 CLI 或工作台任务表单传入，不回写项目策略。
 - 工作台配置接口：`/api/config`、`/api/parameters`、`/api/components`。

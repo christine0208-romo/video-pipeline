@@ -6,7 +6,7 @@
  * 检查：
  *   1. 必需文件齐全
  *   2. src/ 确定性红线：Math.random / Date.now / new Date
- *   3. common/assets 每个文件都在 REGISTRY.json 登记
+ *   3. 内容包素材清单（creative/shared/assets.manifest.json）与磁盘一致
  *   4. package.json 依赖都在 docs/dependencies.json 登记
  *   5. public 链接是链接而不是拷贝
  *   6. 已有 EDL 通过去重校验
@@ -29,6 +29,18 @@ const cfg = loadConfig([]);
 const problems = [];
 const warnings = [];
 
+// 0. 没有创意包时也保证注册表存在（空注册表）
+const creativeInit = spawnSync(
+  process.execPath,
+  [path.join(ROOT, "tools", "init-creative.mjs")],
+  { cwd: ROOT, encoding: "utf8" },
+);
+if (creativeInit.status !== 0) {
+  problems.push(
+    `创意注册表初始化失败：\n${(creativeInit.stdout ?? "") + (creativeInit.stderr ?? "")}`,
+  );
+}
+
 function walk(dir) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -50,10 +62,22 @@ const required = [
   "run.mjs",
   "src/index.ts",
   "src/platform.ts",
-  "src/generated/recipes.json",
-  "src/generated/variation.json",
+  "src/types.ts",
   "modules/scan/index.mjs",
-  "modules/generate/index.mjs",
+  "modules/creative/index.mjs",
+  "modules/creative/loader.mjs",
+  "modules/creative/params.mjs",
+  "modules/creative/compile.mjs",
+  "modules/creative/build.mjs",
+  "modules/creative/work.mjs",
+  "modules/creative/review.mjs",
+  "tools/init-creative.mjs",
+  "tools/assets.mjs",
+  "tools/sync.mjs",
+  "tools/projects.mjs",
+  "modules/lib/assets.mjs",
+  "modules/lib/projects.mjs",
+  "docs/CREATIVE.md",
   "modules/quality/index.mjs",
   "modules/quality/analyze.mjs",
   "modules/quality/similarity.mjs",
@@ -82,9 +106,6 @@ const required = [
   "docs/TROUBLESHOOTING.md",
   "docs/ONBOARDING.md",
   "docs/dependencies.json",
-  "common/assets/REGISTRY.json",
-  "common/assets/sfx/index.json",
-  "common/assets/music/index.json",
 ];
 for (const file of required) {
   if (!existsSync(path.join(ROOT, file))) problems.push(`缺少必需文件：${file}`);
@@ -99,52 +120,43 @@ if (configCheck.status !== 0) {
   problems.push(`配置检查失败：\n${(configCheck.stdout ?? "") + (configCheck.stderr ?? "")}`);
 }
 
-// 2. 确定性红线（只扫我们自己的 src）
+// 1.1 内容包同步检查（注册表过期、未登记素材）
+const syncCheck = spawnSync(
+  process.execPath,
+  [path.join(ROOT, "tools", "sync.mjs"), "--check"],
+  { cwd: ROOT, encoding: "utf8" },
+);
+if (syncCheck.status !== 0) {
+  problems.push(`内容包未同步：\n${(syncCheck.stdout ?? "") + (syncCheck.stderr ?? "")}`);
+}
+
+// 2. 确定性红线（src 与 creative 引擎实现）
 const deterministic = [/Math\.random\s*\(/, /Date\.now\s*\(/, /new Date\s*\(/];
-for (const file of walk(path.join(ROOT, "src"))) {
-  if (!/\.(ts|tsx)$/.test(file)) continue;
-  const text = readFileSync(file, "utf8");
-  for (const pattern of deterministic) {
-    if (pattern.test(text)) {
-      problems.push(`确定性红线：${path.relative(ROOT, file)} 出现 ${pattern}`);
+for (const rootDir of [path.join(ROOT, "src"), path.join(ROOT, "creative")]) {
+  for (const file of walk(rootDir)) {
+    if (!/\.(ts|tsx)$/.test(file)) continue;
+    const text = readFileSync(file, "utf8");
+    for (const pattern of deterministic) {
+      if (pattern.test(text)) {
+        problems.push(`确定性红线：${path.relative(ROOT, file)} 出现 ${pattern}`);
+      }
     }
   }
 }
 
-// 3. 素材登记
-const assetsRoot = path.join(ROOT, "common", "assets");
-if (existsSync(assetsRoot)) {
-  const registryFile = path.join(assetsRoot, "REGISTRY.json");
-  if (!existsSync(registryFile)) {
-    problems.push("缺少 common/assets/REGISTRY.json");
-  } else {
-    const registry = JSON.parse(readFileSync(registryFile, "utf8"));
-    const registered = new Set();
-    for (const entry of registry.entries ?? []) {
-      for (const file of entry.files ?? []) registered.add(file);
-      if (entry.glob) {
-        const regex = new RegExp(
-          "^" +
-            entry.glob.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^/]*") +
-            "$",
-        );
-        for (const file of walk(assetsRoot)) {
-          const rel = path.relative(assetsRoot, file).split(path.sep).join("/");
-          if (regex.test(rel)) registered.add(rel);
-        }
-      }
-    }
-    for (const file of walk(assetsRoot)) {
-      const rel = path.relative(assetsRoot, file).split(path.sep).join("/");
-      const base = path.basename(rel);
-      if (rel === "REGISTRY.json" || base === "README.md" || base === "LICENSES.md") {
-        continue;
-      }
-      if (!registered.has(rel)) problems.push(`素材未登记：common/assets/${rel}`);
-    }
+// 3. 内容包素材清单（没有内容包时跳过）
+const manifestFile = path.join(ROOT, "creative", "shared", "assets.manifest.json");
+if (existsSync(manifestFile)) {
+  const assetsCheck = spawnSync(
+    process.execPath,
+    [path.join(ROOT, "tools", "assets.mjs"), "check", "--verify"],
+    { cwd: ROOT, encoding: "utf8" },
+  );
+  if (assetsCheck.status !== 0) {
+    problems.push(
+      `素材清单检查失败：\n${(assetsCheck.stdout ?? "") + (assetsCheck.stderr ?? "")}`,
+    );
   }
-} else {
-  problems.push("缺少 common/assets");
 }
 
 // 4. 依赖登记
@@ -160,7 +172,7 @@ if (existsSync(packageFile) && existsSync(dependenciesFile)) {
   }
 }
 
-// 5. public 链接
+// 5. public 链接（assets 是素材根合并目录，允许为实体目录）
 for (const link of ["public/assets", "public/generated", "public/thumbs", "public/music"]) {
   const full = path.join(ROOT, link);
   if (!existsSync(full)) {
@@ -168,11 +180,16 @@ for (const link of ["public/assets", "public/generated", "public/thumbs", "publi
     continue;
   }
   try {
-    if (!lstatSync(full).isSymbolicLink()) {
-      problems.push(`${link} 不是链接（疑似拷贝），删除后重跑 scan`);
-    } else {
+    if (lstatSync(full).isSymbolicLink()) {
       readlinkSync(full);
+      continue;
     }
+    if (link !== "public/assets" || !lstatSync(full).isDirectory()) {
+      problems.push(`${link} 不是链接（疑似拷贝），删除后重跑 scan`);
+      continue;
+    }
+    const entries = readdirSync(full, { withFileTypes: true });
+    if (!entries.length) warnings.push("public/assets 为空（素材根未部署）");
   } catch (error) {
     problems.push(`${link} 检查失败：${error.message}`);
   }
@@ -246,4 +263,4 @@ if (problems.length) {
   console.error(`\n检查失败：${problems.length} 个问题。`);
   process.exit(1);
 }
-console.log("检查通过：文件、确定性、素材登记、依赖、public 链接、EDL 均无问题。");
+console.log("检查通过：文件、确定性、素材清单、依赖、public 链接、EDL 均无问题。");

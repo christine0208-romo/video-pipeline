@@ -3,7 +3,8 @@ import type { CalculateMetadataFunction } from "remotion";
 import { Composition } from "remotion";
 import { GeneratedAsset } from "./GeneratedAsset";
 import { MixVideo } from "./MixVideo";
-import type { AssetProps } from "./generated/types";
+import { PRESET_IDS } from "../creative/registry";
+import type { AssetProps } from "./types";
 import type { MixEdl } from "./mix/types";
 
 const EMPTY_EDL: MixEdl = {
@@ -44,7 +45,7 @@ export const RemotionRoot: React.FC = () => (
       width={1080}
       height={1920}
       defaultProps={{
-        preset: "platform-orbit",
+        preset: PRESET_IDS[0] ?? "",
         props: {},
         alpha: false,
         durationInFrames: 90,
