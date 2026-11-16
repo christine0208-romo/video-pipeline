@@ -1,6 +1,6 @@
 # RULES
 
-本文件是细则；`CLAUDE.md` 是入口。冲突时以 `CLAUDE.md` 的七条硬规则为准。
+本文件是硬规则入口；与架构文档冲突时以本文件为准。
 
 ## 1. 确定性
 
@@ -17,7 +17,7 @@
 - 生成片段不能冒充真实操作、真实账号、真实结果。
 - 手机界面、短信、通话、账号页等示意画面必须带「示意」标记。
 - 品牌图标只作类别示意，不表示合作或背书。
-- 生成片段可以叠加在实拍上，但不要在画面上加「来源/出处」角标；来源只进 `CREDITS.md`。
+- 生成片段可以叠加在实拍上，但不要在画面上加「来源/出处」角标；来源只进 `shared/CREDITS.md`。
 - 每条成片至少有一个实拍镜头；`turn` 至少有一个生成片段。
 
 ## 3. 配置与数据
@@ -30,11 +30,11 @@
 
 ## 4. 素材与许可
 
-- 先查素材库 `assets/`（`assets.roots` 可配多根）；需要镜头语汇时查 `shared/shots`（仅参考，不参与运行时）；没有再新增。
+- 先查素材库 `assets/`（`assets.roots` 可配多根）；需要镜头语汇时查 `docs/reference/shots`（仅参考，不参与运行时）；没有再新增。
 - 素材二进制不入库：新增文件后运行 `node tools/assets.mjs scan --apply` 登记到 `shared/assets.manifest.json`，再补 license 并更新 `shared/CREDITS.md`；用户可用 `npm run assets:fetch -- --from <dir>` 部署。
 - 新增图标/字体/地图/音乐/纹理：
   - 放进素材根（默认 `assets/`，或 `assets.roots` 里的任一根）；
-  - `assets scan --apply` 登记（默认 `license=unknown`，必须人工补）；
+  - `assets scan --apply` 登记（`license` / `source` 可选，需要署名时再补）；
   - 写入 `shared/CREDITS.md`；
   - 许可不清楚的不用；`assets check --strict` 会拦住未登记许可的条目。
 - 音效与 BGM 必须来自 CC0 或明确许可来源；CC BY 曲目发布时必须保留署名。
@@ -97,7 +97,7 @@
 - 不把「开场 / 背景 / 要点 / 证据 / 但是 / 结论」等内部标签印上屏。
 - 不把分镜描述词、制作者备注印上屏。
 - 不写绝对说法（「一定」「百分百」）；CTA 直接指向主页。
-- 不把来源角标、平台声明贴在画面上；只进 `CREDITS.md`。
+- 不把来源角标、平台声明贴在画面上；只进 `shared/CREDITS.md`。
 
 ## 10. 提交前检查
 
@@ -105,4 +105,4 @@
 - `npm run typecheck`。
 - `node run.mjs check`：已有 EDL 的签名/区间/时长。
 - 看一遍本段静帧；至少抽 3 帧。
-- 更新 `STATUS.md`；有新坑追加 `docs/records/LESSONS.md`。
+- 更新相关文档；计划进度写进 `docs/PLAN-NEXT.md`；可执行规则写进本文件，完整踩坑按记录规则归档到 `docs/records` 与 `docs/archive`。

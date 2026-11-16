@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
-import { findAssetFile } from "../lib/assets.mjs";
+import { resolveAudioFile } from "../lib/assets.mjs";
 import { readJson, shortHash } from "../lib/fsx.mjs";
 import { linkMusic } from "../lib/public.mjs";
 import { makeRng, pick, shuffle } from "../lib/rng.mjs";
@@ -572,17 +572,6 @@ function pickAutoTrack(cfg, tracks) {
   return scored[0]?.track ?? null;
 }
 
-function musicSrcOf(cfg, file) {
-  for (const root of cfg.assetRoots) {
-    const dir = path.join(root, "music");
-    if (file.startsWith(dir + path.sep)) {
-      const relative = path.relative(dir, file).split(path.sep).join("/");
-      return `assets/music/${relative}`;
-    }
-  }
-  return linkMusic(cfg, file);
-}
-
 function resolveMusic(cfg) {
   const config = cfg.mix.music;
   if (!config) return null;
@@ -593,47 +582,64 @@ function resolveMusic(cfg) {
     "music.index.json",
   );
   const index = loadIndex(indexFile, { tracks: [] });
-  const tracks = (index.tracks ?? []).filter((track) =>
-    findAssetFile(cfg.assetRoots, `music/${track.file}`),
-  );
-  const options = typeof config === "object" ? config : {};
+  const tracks = (index.tracks ?? [])
+    .map((track) => ({
+      track,
+      resolved: resolveAudioFile(cfg.assetRoots, "music", track.file),
+    }))
+    .filter((entry) => entry.resolved);
+  const options = typeof config === "object" && config ? config : {};
   let track = null;
-  let file = null;
+  let src = null;
+  let external = null;
 
   if (typeof config === "string") {
     if (config === "auto") {
-      track = pickAutoTrack(cfg, tracks);
+      track = pickAutoTrack(cfg, tracks.map((entry) => entry.track));
     } else {
-      file = path.isAbsolute(config)
+      external = path.isAbsolute(config)
         ? config
         : path.resolve(cfg.paths.repo, config);
     }
   } else if (typeof config === "object") {
     const value = config.file ?? config.path;
     if (config.mode === "auto" || !value) {
-      track = pickAutoTrack(cfg, tracks);
+      track = pickAutoTrack(cfg, tracks.map((entry) => entry.track));
     } else {
-      const byId = tracks.find((item) => item.id === value);
+      const byId = tracks.find((entry) => entry.track.id === value);
       if (byId) {
-        track = byId;
+        track = byId.track;
       } else if (path.isAbsolute(value)) {
-        file = value;
+        external = value;
       } else {
-        const direct = path.resolve(cfg.paths.repo, value);
-        file = existsSync(direct)
-          ? direct
-          : findAssetFile(cfg.assetRoots, `music/${value}`);
+        const resolved = resolveAudioFile(cfg.assetRoots, "music", value);
+        if (resolved) {
+          src = resolved.src;
+        } else {
+          const direct = path.resolve(cfg.paths.repo, value);
+          if (existsSync(direct)) external = direct;
+        }
       }
     }
   }
 
   if (track) {
-    file =
-      findAssetFile(cfg.assetRoots, `music/${track.file}`) ??
-      path.resolve(cfg.paths.repo, track.file);
+    src = tracks.find((entry) => entry.track.id === track.id)?.resolved.src ?? null;
   }
-  if (!file || !existsSync(file)) {
-    console.warn(`[mix] 背景音乐不存在，已忽略：${file ?? "(auto)"}`);
+  if (!src && external) {
+    if (!existsSync(external)) {
+      console.warn(`[mix] 背景音乐不存在，已忽略：${external}`);
+      return null;
+    }
+    src = linkMusic(cfg, external);
+  }
+  if (!src) {
+    console.warn(
+      `[mix] 背景音乐不存在，已忽略：${
+        (typeof config === "object" ? config.file ?? config.path : config) ??
+        "(auto)"
+      }`,
+    );
     return null;
   }
   if (track?.attributionRequired) {
@@ -645,7 +651,6 @@ function resolveMusic(cfg) {
     track?.loop ||
       (duration > 0 && duration < Number(cfg.mix.duration) + 1),
   );
-  const src = musicSrcOf(cfg, file);
   return {
     src,
     volume: Number(options.volume ?? track?.volume ?? 0.6),
@@ -672,31 +677,36 @@ function buildSfx(cfg, beats, shots) {
     "sfx.index.json",
   );
   const index = loadIndex(indexFile, { items: [] });
-  const items = (index.items ?? []).filter((item) =>
-    findAssetFile(cfg.assetRoots, `sfx/${item.file}`),
-  );
+  const items = (index.items ?? [])
+    .map((item) => ({
+      item,
+      resolved: resolveAudioFile(cfg.assetRoots, "sfx", item.file),
+    }))
+    .filter((entry) => entry.resolved);
   if (!items.length) return [];
 
-  const byId = new Map(items.map((item) => [item.id, item]));
+  const byId = new Map(items.map((entry) => [entry.item.id, entry]));
   const byCategory = new Map();
-  for (const item of items) {
-    if (!byCategory.has(item.category)) byCategory.set(item.category, []);
-    byCategory.get(item.category).push(item);
+  for (const entry of items) {
+    const category = entry.item.category;
+    if (!byCategory.has(category)) byCategory.set(category, []);
+    byCategory.get(category).push(entry);
   }
 
   const events = [];
   const seen = new Set();
   const add = (id, at, scale = 1, shotIndex = null) => {
-    const item =
+    const entry =
       byId.get(id) ?? byCategory.get(id)?.[0] ?? byCategory.get("impact")?.[0];
-    if (!item) return;
+    if (!entry) return;
+    const item = entry.item;
     const time = round3(Math.max(0, at));
     if (time > Number(cfg.mix.duration) + 0.01) return;
     const key = `${item.id}:${time.toFixed(2)}`;
     if (seen.has(key)) return;
     seen.add(key);
     events.push({
-      src: `assets/sfx/${item.file}`,
+      src: entry.resolved.src,
       at: time,
       dur: item.duration,
       volume: round3(

@@ -12,5 +12,5 @@
 /assets/
 /common/assets/
 /config/local.json
-/.claude/settings.local.json
+/.claude/
 *.log

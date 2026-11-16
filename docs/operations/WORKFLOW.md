@@ -24,7 +24,7 @@ npm run doctor
 node run.mjs scan
 ```
 
-- 读 `STATUS.md`、`docs/records/LESSONS.md`、`docs/reference/RULES.md`。
+- 读 `docs/README.md`、`docs/records/LESSONS.md`、`docs/reference/RULES.md` 与任务相关的架构文档。
 - 看 `config/pipeline.json` 的 roots 与 spec。
 - 看 `data/library.json` 的条数与 `data/catalog.json` 的条数。
 
@@ -49,7 +49,7 @@ node run.mjs scan
 4. 新建或更新一个创意工程引用该引擎。
 5. `node run.mjs creative validate --strict`、`creative plan --creative <id>`。
 6. 看 `out/stills/assets/` 静帧；需要透明叠加时检查 WebM alpha。
-7. 更新 `docs/architecture/ARCHITECTURE.md`、`docs/architecture/CREATIVE.md` 与 `docs/records/LESSONS.md`。
+7. 更新 `docs/architecture/ARCHITECTURE.md`、`docs/architecture/CREATIVE.md` 等受影响文档，并把可执行经验写进 `docs/records/LESSONS.md`。
 
 命名：引擎与创意 id 用 kebab-case，不用中文；画面上不出现内部标签。
 
@@ -167,7 +167,7 @@ node run.mjs check
 4. `npm run typecheck`。
 5. `node run.mjs creative build --force`，看静帧。
 6. `node run.mjs mix --duration 12 --outputs 1 --dry-run`。
-7. 更新 `CREDITS.md` / `docs/operations/DEPENDENCIES.md`（如有新资源/依赖）。
+7. 更新 `shared/CREDITS.md`（如有新素材）或 `docs/operations/DEPENDENCIES.md`（如有新依赖）。
 
 ## 8. 重置运行数据
 
@@ -246,10 +246,10 @@ npm run typecheck
 node run.mjs check
 ```
 
-- 更新 `STATUS.md`。
-- 有新坑追加 `docs/records/LESSONS.md`。
+- 更新相关文档；计划进度写进 `docs/PLAN-NEXT.md`。
+- 新坑按记录规则归档：详情进 `docs/archive/LESSONS-HISTORY.md`，可执行规则进 `docs/records/LESSONS.md`。
 - 新组件更新 `docs/architecture/ARCHITECTURE.md`。
-- 新素材更新 `CREDITS.md` 与 `REGISTRY.json`。
+- 新素材更新 `shared/CREDITS.md`（由 `shared credits` 生成）。
 - 不提交 `data/`、`out/`、`public/`、`node_modules/`。
 
 ## 11. 调试一条 EDL
@@ -288,6 +288,17 @@ Agent 与人类使用同一套命令与闸门；不允许自创目录、配置�
 
 ### 12.2 标准循环
 
+资源准备（首次或换内容包时）：
+
+```bash
+node run.mjs shared init          # 生成结构与素材目录
+node tools/assets.mjs add <文件|目录|URL> --license <许可> --source <来源>
+node run.mjs shared credits --write --force
+node run.mjs shared validate --strict --json
+```
+
+创意与出片：
+
 ```bash
 node run.mjs creative new <id> --name <名称>
 # 写 creative/<id>/README.md：意图、节拍、时长、素材依赖、验收标准
@@ -322,10 +333,62 @@ node run.mjs quality --report-only               # data/quality/report.json
 - `build` 失败 0，`quality` 无 `ok=false`；
 - 变体已 `approved`；
 - `npm run check`、`npm run typecheck`、`shared validate --strict` 通过；
-- `STATUS.md` 更新，新坑按记录规则归档。
+- 相关文档更新；新坑按记录规则归档。
 
 ### 12.5 结果一致性
 
 - 同一类任务只使用本节的命令链；不要用临时脚本替代；
 - 交付报告必须列出实际执行的命令与关键结果（数量、时长、失败数、质量标记）；
 - 发现系统缺少能力时，先记录并新建任务，不要在本任务里临时扩架构。
+
+## 13. 分支与版本
+
+默认约定：**开发阶段默认 `0.0.x`（小步迭代）；阶段性稳定点才用 `0.y.0`；正式发行版才用 `1.0.0`。用户未明确说明的改动都按小版本处理，走短分支。**
+
+### 13.1 版本语义
+
+| 类型 | 触发 | 版本 |
+|---|---|---|
+| 开发迭代 | 功能、文档、修复等日常小步改动（默认） | `0.0.N` |
+| 阶段稳定点 | 一个 Phase 验收通过、可以整体交付 | `0.Y.0` |
+| 稳定点修复 | 阶段稳定点上的 bug 与文档修复 | `0.Y.Z` |
+| 正式发行版 | 用户明确宣布结束开发阶段 | `1.0.0` |
+| 正式版之后 | 已发行版本的不兼容变更 | `X.0.0`（X≥2） |
+
+- 当前基线为 `v0.0.1`；Phase 1 完成时升 `v0.1.0`，之后每个 Phase 升 minor（0.2、0.3…）。
+- 资源市场与插件体系稳定、对外宣布正式发行时才发布 `1.0.0`。
+- 版本号写在 `package.json`；用 `npm version <ver> --no-git-tag-version` 同步 `package-lock.json`。
+- 发布后打附注标签 `vX.Y.Z`。
+
+### 13.2 分支
+
+| 分支 | 用途 | 生命周期 |
+|---|---|---|
+| `main` | 始终可发布；只接收通过门禁的合并 | 长期 |
+| `feat/<slug>` | 小版本功能（默认） | 合并后删除 |
+| `fix/<slug>` | 补丁 | 合并后删除 |
+| `release/<slug>` | 稳定版或用户明确宣布的大版本，可含多个提交 | 发布后删除 |
+| `exp/<slug>` | 试验，不合并 | 按需 |
+
+- 一个分支只做一个版本；不要在同一分支混入下一个小版本。
+- 不在 `main` 上直接开发。当前这次大改动是例外：已作为 `v0.0.1` 直接进入 `main`。
+- 合并前跑完整门禁；合并后在 `main` 上打 tag 并推送。
+
+### 13.3 发布流程
+
+```bash
+git switch -c feat/<slug>
+# 开发，更新 PLAN-NEXT 与相关文档
+npm version patch --no-git-tag-version    # 小步用 patch；阶段稳定点用 minor；正式发行用 1.0.0
+npm run check && npm run typecheck
+node run.mjs shared validate --strict --json
+node run.mjs creative registry --check
+git add -A && git commit
+git switch main
+git merge --squash feat/<slug> && git commit
+git tag -a vX.Y.Z -m "vX.Y.Z"
+git push origin main && git push origin vX.Y.Z
+```
+
+- 远程只有 `origin`；旧的 `old-origin` 已移除。
+- 不推送未通过门禁的提交；`data/`、`out/`、`public/` 与内容区不进入版本库。

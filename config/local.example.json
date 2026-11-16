@@ -1,13 +1,12 @@
 {
   "assets": {
     "roots": [
-      "D:/Files/AI_Vedio/assets",
-      "D:/shared/motion-assets"
+      "D:/your-assets"
     ]
   },
   "footage": {
     "roots": [
-      "D:/Files/AI_Vedio/1_素材库/vedio"
+      "D:/your-footage"
     ]
   },
   "tools": {

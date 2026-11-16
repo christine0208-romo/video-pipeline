@@ -1,6 +1,6 @@
 # STATUS HISTORY
 
-> STATUS.md 的历史会话与验收记录（2026-11-08 ～ 2026-11-15）。当前状态见 `STATUS.md`。
+> 历史会话与验收记录（2026-11-08 ～ 2026-11-16）。默认不读；当前计划见 `docs/PLAN-NEXT.md`。
 
 ## 会话交接（2026-11-08 · 质量层 + 镜头节奏 + 素材解耦）
 
@@ -576,3 +576,12 @@
 - 文档同步：README 部署流程加入 `shared init`；CLAUDE 开工顺序与命令表；MODULES、ASSETS 指向 SHARED。
 - 验证：主仓 `shared status`（清单 82 / 字体 0 缺失 / sfx 13 / music 5 / 镜头卡 121 / 素材根 82 文件）、`shared validate`（0 错 0 警告）、`check`、`typecheck` 通过。
 
+
+## 2026-11-16 · 记账文件命令化：字体清单 / 音频相对路径 / add --keep
+
+- 字体清单自动生成：清单字体条目增加 `family/weight/style`（可由 `assets add --family/--weight` 指定，缺省按文件名推断）；新增 `node run.mjs shared fonts [--write]` 生成 `shared/fonts.ts`，`shared init`、`assets add`、`assets scan --apply` 自动维护；新增 `assets font list|set` 修正 family/weight/style。
+- 音频索引改相对素材根：新增 `resolveAudioFile(roots, kind, file)`；`resolveMusic` / `buildSfx` / `shared validate` 统一解析，EDL `src` 写 `assets/<相对路径>`；`audio scan` 扫描所有素材根中的 mp3/m4a/ogg/flac/wav；旧裸文件名继续兼容。
+- `assets add` 支持多目标与 `--keep`（目录按原结构复制，不归类）；重复导入幂等，输出新增/更新/跳过/失败汇总；任意路径的字体与音频自动进入字体清单与音频索引。
+- 修复：空核心（无 `creative/`）时 `shared init` 在注册表生成处崩溃；`tools/check-config.mjs` 读取 variation 的路径错误（`creative/shared` → `shared/`）。
+- 验证：主仓 `npm run check`、`npm run typecheck`、`shared validate --strict --json`、`creative registry --check` 通过；内存规划旧索引仍产出 1 首 BGM + 16 个 SFX，src 不变；部署副本走通 `shared init → add --keep/多路径 → fonts.ts 生成 → audio scan/set → creative new → validate --strict --json → preview → mix --dry-run`（BGM `assets/snd/theme.mp3`、SFX `assets/snd/click.wav`）。
+- 文档：SHARED、AUDIO、README、ARCHITECTURE、RULES、LESSONS；镜头卡与提示词库保留在 `docs/reference/` 供创意参考。

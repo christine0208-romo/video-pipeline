@@ -4,8 +4,8 @@
 
 | 层 | 位置 | 内容 | 规范 |
 |---|---|---|---|
-| core | `run.mjs`、`modules/`、`src/`、`tools/`、`workbench/`、`config/`、`common/engine` | 机制与通用原语；不含创意实现、项目设计令牌、素材清单 | 本文件 |
-| shared | `shared/`（gitignore） | 公共资源与预设：清单、字体/音频索引、设计令牌（含平台避让）、公共代码、镜头卡 | [SHARED.md](SHARED.md) |
+| core | `run.mjs`、`modules/`、`src/`、`tools/`、`workbench/`、`config/`、`common/engine` | 机制与通用原语；不含创意实现、项目设计令牌、素材清单或资源内容 | 本文件 |
+| shared | `shared/`（gitignore） | 公共资源与预设：清单、字体/音频索引、设计令牌（含平台避让）、公共代码 | [SHARED.md](SHARED.md) |
 | creative | `creative/`（gitignore） | 创意工程：每个工程独立的引擎、变体、可选 `assets/` | [CREATIVE.md](CREATIVE.md) |
 | assets | `assets/`（gitignore，可多根） | 素材文件库，用户与系统共同维护 | [SHARED.md](SHARED.md) |
 
@@ -190,7 +190,7 @@ shared/audio/music.index.json
 - `common/engine`：设计令牌无关的运动数学、时间工具、字体门、CanvasStage、`assetPath`；`motion-core`/`time`/`fonts` 源自 fy-code-animation。
 - Canvas 绘制引擎属于内容，在 `shared/code/canvas-engine/`，由 `shared/presets/canvas.ts` 注入配置；核心只保留 `CanvasStage` 桥。
 
-`common/` 只剩 `engine/`。素材库 `assets/`（多根合并）属于内容部署；素材清单在 `shared/assets.manifest.json`；镜头卡在 `shared/shots/`。
+`common/` 只剩 `engine/`。素材库 `assets/`（多根合并）属于内容部署；素材清单在 `shared/assets.manifest.json`；镜头卡在 `docs/reference/shots/`。
 
 不要在 `common/` 里加业务逻辑；业务逻辑放 `src/` 与 `modules/`。
 
@@ -198,10 +198,11 @@ shared/audio/music.index.json
 
 | 位置 | 作用 |
 |---|---|
-| `modules/lib/assets.mjs` | 素材库多根：`scanAssetFiles` / `diffAssetFiles` / `findAssetFile` / `sha256` |
+| `modules/lib/assets.mjs` | 素材库多根：`scanAssetFiles` / `diffAssetFiles` / `findAssetFile` / `resolveAudioFile` / `sha256` |
+| `modules/lib/fonts.mjs` | 字体清单：从清单字体条目推断/生成 `shared/fonts.ts` |
 | `modules/lib/projects.mjs` | 扫描 `projects/*/project.json`，校验 id、目录、脚本入口 |
-| `tools/shared.mjs` | 公共资源层：`init` 生成结构 / `status` 报告 / `validate` 校验（规范见 `docs/architecture/SHARED.md`） |
-| `tools/assets.mjs` | 清单 CLI：`check / scan / fetch / list`（scan 支持 `--apply --prune --check`） |
+| `tools/shared.mjs` | 公共资源层：`init` 生成结构 / `status` 报告 / `validate` 校验 / `fonts` 生成字体清单（规范见 `docs/architecture/SHARED.md`） |
+| `tools/assets.mjs` | 清单 CLI：`add / check / scan / fetch / list / font / audio`（scan 支持 `--apply --prune --check`） |
 | `tools/sync.mjs` | 统一同步：注册表 + 素材清单 + 可选实拍（`--apply / --check / --footage`） |
 | `tools/projects.mjs` | 项目包 CLI：`scan` |
 | `tools/init-creative.mjs` | 注册表缺失时生成空注册表（postinstall） |

@@ -1,116 +1,138 @@
-# SHARED · 公共资源层与素材库规范
+# SHARED · 公共资源层与素材库
 
-`shared/` 与 `assets/` 是**系统与用户共同维护**的区域：系统负责结构、模板、校验、统计与同步；用户负责资源本体与许可信息。两者都不进仓库，但结构与规范随核心分发。
+`shared/` 与 `assets/` 是**系统与用户共同维护**的区域。系统负责结构、默认内容、校验、统计与同步；用户负责资源本体与许可信息。
 
-```bash
-node run.mjs shared init      # 新机器/新项目：生成结构
-node run.mjs shared status    # 随时查看：条目数、缺失、未登记
-node run.mjs shared validate  # 提交前校验；--strict 把缺失也算失败
-```
+## 1. 资源从哪里来
 
-## 1. 所有权矩阵
+| 内容 | 来源 | 获取方式 |
+|---|---|---|
+| 结构、模板（空清单、字体清单、音频索引、设计令牌、公共代码目录） | 核心 | `node run.mjs shared init` 生成缺失文件 |
+| 字体、图标、地图、音乐、音效等二进制 | 用户提供，或清单里的 `url` | `node tools/assets.mjs add <文件\|目录\|URL>`，或 `npm run assets:fetch` |
+| 创意工程、作品专属素材 | 独立创意包 / 用户 | 放入 `creative/`；素材放 `assets/` 或工程内 `assets/` |
+
+核心**不携带**任何资源二进制、素材清单内容或创意实现；这些由内容包或用户提供。系统只提供结构、命令与校验。镜头卡是创意参考，随文档在 `docs/reference/shots/`，不属于 `shared/`。
+
+常见公开来源（自行确认许可并填入 `--license`）：Simple Icons（CC0）、Lucide（ISC）、Google Fonts / Noto CJK（OFL）、Kenney（CC0）、AERIS MUSIC（CC0）、Kevin MacLeod（CC BY，需署名）。
+
+## 2. 所有权矩阵
 
 | 位置 | 必需 | 系统负责 | 用户负责 |
 |---|---|---|---|
-| `shared/README.md`、`CREDITS.md` | 否 | 模板、结构 | 许可与署名内容 |
-| `shared/assets.manifest.json` | 否 | 生成、哈希、比对、校验 | 补 `license` / `source` / `url` |
-| `shared/fonts.ts` | 否 | 模板、文件存在性校验 | 清单条目与字体文件 |
-| `shared/audio/sfx.index.json` | 否 | 结构、id/文件校验 | 条目、增益、类别、文件 |
-| `shared/audio/music.index.json` | 否 | 结构、id/文件校验 | 曲目、BPM、情绪、文件 |
-| `shared/audio/LICENSES.md` | 否 | 模板 | 署名要求 |
-| `shared/presets/design.ts` | 否 | 模板 | 设计令牌、平台避让（如 TikTok） |
-| `shared/presets/canvas.ts` | 否 | 模板 | 是否给 Canvas 助手注入配置 |
+| `shared/assets.manifest.json` | 否 | 生成、哈希、比对、校验；字体条目自动补 `family/weight` | 按需补 `license` / `source` / `url`（可选） |
+| `shared/fonts.ts` | 否 | **从清单字体条目生成**（`shared fonts --write`、`add`、`scan --apply` 自动触发） | 不手改；family 不对时用 `assets font set` |
+| `shared/audio/{sfx,music}.index.json` | 否 | 结构、id/文件校验、`file` 解析 | 用 `audio scan/set` 维护条目（不建议手改） |
+| `shared/presets/design.ts`、`canvas.ts` | 否 | 模板 | 设计令牌、平台避让（如 TikTok） |
 | `shared/code/*` | 否 | 目录说明 | 公共代码（types / palette / parts…） |
-| `shared/shots/*` | 否 | 目录说明 | 镜头卡文档 |
 | `shared/variation.json` | 否 | 模板 | 裂变变化轴 |
-| `assets/roots`（`assets.roots`） | 否 | 建目录、扫描、登记、校验 | 放文件、替换文件、删除文件 |
+| `shared/CREDITS.md` | 否 | 从清单生成 | 一般不需要改 |
+| `assets/{fonts,icons,music,sfx,brand,map}` | 否 | 建目录、扫描、登记、校验 | 放文件、替换文件、删除文件 |
 
-**系统约定**：`shared init` 只创建缺失文件，绝不覆盖已有内容；`--force` 才会用模板重写。系统命令不修改用户的清单条目、预设数值或代码。
+**系统约定**：`shared init` 只补缺失文件，不覆盖已有内容；`--force` 才用模板重写。系统命令不改用户的清单条目、预设数值或代码。`license` / `source` 是可选字段，只有分发 CC BY 等需要署名的素材时才建议填写。
 
-## 2. 目录结构
+**记账文件与创作文件**：由命令写的文件（清单、`fonts.ts`、音频索引、`CREDITS.md`、`creative/registry.ts`、`data/` 与 `out/` 产物）属于记账文件，必须能由命令重建，不允许“系统生成但用户必须手改才能工作”；`presets/*`、`variation.json`、`shared/code/*`、`creative/<id>/*`、`projects/<id>/*` 属于创作文件，允许手改。
+
+## 3. 目录结构
 
 ```text
 shared/
-  assets.manifest.json     素材清单：path / kind / sha256 / size / license / source / url / provided
-  fonts.ts                 FONT_MANIFEST（file 相对 public，如 assets/fonts/x.otf）
-  audio/
-    sfx.index.json         { version, items: [{ id, file, category, gain, duration, license, source }] }
-    music.index.json       { version, tracks: [{ id, file, bpm, mood, energy, duration, license }] }
-    LICENSES.md
-  presets/
-    design.ts              VIDEO / SAFE / COLORS / TYPE / GRID / MOTION
-    canvas.ts              用设计令牌配置 Canvas 绘制助手
-  code/                    可选的公共代码
-    types.ts               引擎 props 类型
-    palette.ts / parts.tsx / backdrop.tsx / assets.ts / icons.json / world-dots.json
-  shots/                   镜头卡文档
+  assets.manifest.json     素材清单：path / kind / sha256 / size / license / source / url / provided；
+                           字体条目另有 family / weight / style
+  fonts.ts                 生成物：FONT_MANIFEST（file 相对 public，如 assets/fonts/x.otf）
+  audio/                   sfx.index.json、music.index.json、LICENSES.md；
+                           条目 file 为相对素材根路径（music/x.mp3、custom/intro.wav）
+  presets/                 design.ts（VIDEO/SAFE/COLORS/TYPE/GRID/MOTION）、canvas.ts
+  code/                    types / palette / parts / backdrop / assets / icons.json / world-dots.json / canvas-engine
   variation.json           裂变变化轴
+  CREDITS.md               由清单生成
   README.md
-  CREDITS.md
+
+assets/                   素材根（可多根）
+  fonts/ icons/ music/ sfx/ brand/ map/   一级目录决定 kind；
+  其他目录按扩展名推断（`add --keep` 时保留原结构）
 ```
 
-`assets/` 本身没有强制层级，建议按用途分一级目录：`fonts/`、`icons/`、`music/`、`sfx/`、`brand/`、`map/`。`scan --apply` 用一级目录推断 `kind`。
+## 4. 标准流程
 
-## 3. 生命周期
-
-```text
-shared init → 放入素材 → sync --apply（登记 + 注册表）→ shared status
-                                              ↓
-                                   check / validate / build / mix
+```bash
+node run.mjs shared init          # 生成 shared/ 结构与素材目录（空清单）
+node tools/assets.mjs add <文件|目录|URL> [更多目标...] --license <许可> --source <来源>   # 字体/音频自动维护索引
+node run.mjs shared fonts --write # 从清单字体条目重写 shared/fonts.ts（add/scan 已自动调用）
+node run.mjs shared status        # 看缺口
+node run.mjs shared credits --write --force   # 从清单生成 CREDITS
+node run.mjs shared validate --strict
 ```
 
-1. **初始化**：`shared init` 生成缺失文件与素材根目录。
-2. **添加素材**：文件放进任意素材根（或工程的 `assets/`）。
-3. **登记**：`node run.mjs sync --apply` 扫描素材根并写入清单（新条目 `license=unknown`）。
-4. **补许可**：编辑清单条目的 `license` / `source` / `url`，更新 `CREDITS.md`。
-5. **校验**：`shared validate`；提交前用 `--strict`。
-6. **替换/删除**：替换同名文件后重新 `scan --apply`（更新哈希）；删除文件后 `scan --apply --prune` 移除条目（不删文件）。
-7. **部署到新机器**：`shared init` → `npm run assets:fetch`（有直链的自动下载）或 `-- --from <dir>`；无清单时先放文件再 `scan --apply`。
+用户自己新增素材：
 
-## 4. 命令
+```bash
+# 放入 assets/<kind>/ 后
+node run.mjs sync --apply         # 登记新文件（license/source 可选；字体清单同时更新）
+# 或直接由 add 复制并登记
+node tools/assets.mjs add <文件|目录> [--keep] --license <许可>
+# 字体 family 推断不准时
+node tools/assets.mjs font set fonts/x.woff2 --family "Inter" --weight 600
+# 补清单条目 license/source，再
+node run.mjs shared credits --write --force
+node run.mjs shared validate --strict
+```
+
+## 5. 冲突与一致性规则
+
+| 情况 | 系统行为 | 用户处理 |
+|---|---|---|
+| 同一相对路径出现在多个素材根 | 按 `assets.roots` 顺序，前一个根优先；`status`/`scan` 报告被遮蔽项 | 调整根顺序，或把文件改到不同路径 |
+| 磁盘有文件、清单没有 | `check` 报“未登记”，`scan --apply` 可登记 | 确认许可后登记 |
+| 清单有、磁盘没有 | `check` 报缺失；`scan --apply --prune` 移除条目（不删文件） | 部署文件或 prune |
+| 文件被替换 | `check --verify`/`scan` 报哈希变化；`scan --apply` 更新 | 确认替换原因后更新 |
+| `license=unknown` | 不检查、不阻断 | 可选：需要署名时补上 |
+| 工程自带素材与公共素材同名 | 互不影响：`project/...` 只解析到工程 `assets/` | — |
+| 手工改了 `CREDITS.md` | 下次 `credits --write` 会覆盖 | 许可/来源改清单，不直接改 CREDITS |
+| 手工改了 `fonts.ts` | `shared fonts --write` 或下次 `add`/`scan` 会覆盖 | 改清单字体条目，或用 `assets font set` |
+| `add --keep <目录>` | 目录内容按原结构复制到首个素材根，不按扩展名归类 | 需要标准目录时不要加 `--keep` |
+| 同一路径重复 `add` | 已存在且无 `--force` 时跳过 | 需要覆盖时加 `--force` |
+| 音频索引 `file` 找不到 | 含 `/` 的按原路径、再按 `kind/原路径`；裸文件名按 `kind/名`、再按原名 | 用 `audio scan --apply` 重新登记 |
+
+**唯一事实来源**：许可与来源在 `assets.manifest.json`，`CREDITS.md` 是生成物；素材文件在 `assets/`，清单是索引。
+
+## 6. 命令
 
 | 命令 | 作用 |
 |---|---|
-| `node run.mjs shared init [--force]` | 生成缺失结构与素材根 |
-| `node run.mjs shared status` | 只读：清单、字体、音频、预设、代码、镜头卡、工程素材、素材根 |
-| `node run.mjs shared validate [--strict]` | 结构/JSON/引用校验；strict 把缺失与未登记许可算失败 |
-| `node run.mjs sync --apply` | 写注册表 + 登记新素材 |
-| `npm run assets:check` / `assets:verify` | 缺失检查 / SHA-256 校验 |
-| `npm run assets:scan` | 磁盘与清单差异 |
-| `npm run assets:fetch` | 按清单下载或 `--from` 部署 |
-| `npm run check` | 含 `shared validate`（shared 存在时） |
+| `node run.mjs shared init [--force]` | 生成缺失结构、建素材根与标准目录、回填字体元数据、生成 CREDITS、更新注册表 |
+| `node tools/assets.mjs add <文件\|目录\|URL> [...] [--keep]` | 复制/下载并自动登记（支持多个目标）；`--keep` 保留目录原结构；字体自动生成 `fonts.ts`，音频自动编入索引 |
+| `node tools/assets.mjs font list` | 列出清单里的字体条目与 family/weight |
+| `node tools/assets.mjs font set <path> [--family\|--weight\|--style]` | 修正字体元数据并重写 `shared/fonts.ts` |
+| `node tools/assets.mjs audio scan [--apply]` | 扫描所有素材根中的音频文件，登记未编入索引的条目（时长用 ffprobe） |
+| `node tools/assets.mjs audio set <id> [--category\|--gain\|--bpm\|--mood\|--energy\|--roles]` | 修改索引条目 |
+| `node tools/assets.mjs audio list` | 列出音乐/音效索引 |
+| `node run.mjs shared fonts [--write] [--json]` | 从清单字体条目生成 `shared/fonts.ts`（dry-run 打印） |
+| `node run.mjs shared status [--json]` | 清单/字体/音频/预设/代码/工程素材/素材根 |
+| `node run.mjs shared validate [--strict] [--json]` | 结构/JSON/引用校验 |
+| `node tools/assets.mjs init` | 只建素材根与一级目录 |
+| `node tools/assets.mjs credits [--write] [--force]` | 从清单生成 `shared/CREDITS.md` |
+| `node tools/assets.mjs scan [--apply] [--prune]` | 登记/更新/移除条目 |
+| `node tools/assets.mjs check [--verify] [--strict]` | 缺失、未登记、哈希、许可 |
+| `npm run assets:fetch [-- --from <dir>]` | 按清单部署二进制 |
+| `node run.mjs sync --apply` | 注册表 + 清单 + 可选实拍 |
 
-## 5. 素材库（assets/）
-
-- **多根**：`config/pipeline.json` 的 `assets.roots`（默认 `["assets"]`），机器相关路径写 `config/local.json`；`--asset-roots a,b` 可临时覆盖。
-- **合并**：按根顺序合并到 `public/assets`；同名单目录递归合并，同一相对路径由前一个根优先。
-- **引用**：内容写相对路径（`icons/x.svg`）或 `assets/...`；工程自带素材写 `project/...`。
-- **许可**：新文件默认 `license=unknown`；`check --strict` 会拦住。不自行推断许可。
-- **删除**：不会自动删除文件；`--prune` 只删清单条目。
-- **项目自带素材**：`creative/<id>/assets/`，不登记共享清单，跟随工程目录移动。
-
-## 6. 空核心与部分内容
+## 7. 空核心与部分内容
 
 | 状态 | 行为 |
 |---|---|
-| 无 `shared/` | `shared status/validate` 提示未初始化并正常退出；`check` 跳过；渲染无字体、无素材 |
-| 有 `shared/` 无素材 | `validate` 警告缺失；`assets check` 报缺失；渲染时缺少的资源按错误处理 |
-| 有素材无清单 | `assets check` 报“N 个文件未登记”；`scan --apply` / `sync --apply` 生成清单 |
+| 无 `shared/` | `init` 物化默认包；`status/validate` 提示未初始化；`check` 跳过 |
+| 有 `shared/` 无二进制 | `status` 显示缺失；`check` 报缺失；`assets:fetch` 补齐 |
+| 有素材无清单 | `check` 报未登记；`sync --apply` 生成清单 |
 | 清单与磁盘不一致 | `status` 显示新增/变更/缺失；`sync --check` 退出 1 |
 
-## 7. 系统更新如何触达这个区域
+## 8. 系统更新如何触达
 
-- 结构、模板、校验与统计都在核心（`docs/architecture/SHARED.md` + `tools/shared.mjs`），不依赖用户目录里的文件；更新核心后 `shared init` 会补齐新增的缺失文件。
-- 系统不静默修改用户内容；需要结构变化时提升 `version` 并提供迁移说明，迁移命令在实现前不会自动执行。
-- 当前清单/音频索引的 `version` 为 `1`。
+- 结构、模板、校验与统计都在核心（`tools/shared.mjs` + `docs/architecture/SHARED.md`），不依赖用户目录里的文件；核心升级后重跑 `shared init` 会补齐新增缺失文件。
+- 核心不携带资源内容；资源由用户或内容包提供，系统只负责登记、校验与生成 CREDITS。
+- 系统不静默改用户内容；需要结构变化时提升 `version` 并提供迁移说明。
+- 清单/音频索引当前 `version` 为 `1`。
 
-## 8. 用户规则
+## 9. 用户与 Agent 操作清单
 
-1. 只通过命令改清单结构；不要手写 `sha256`。
-2. 新素材先放文件，再 `scan --apply`，最后补许可。
-3. 不覆盖别人正在引用的文件；替换时保持相对路径不变。
-4. 公共代码只放被 2 个以上工程复用的部分，单工程代码放工程目录。
-5. 平台预设（TikTok 等）放 `presets/`，不要写进核心。
-6. `shared/shots` 是参考文档，不参与运行时。
-7. 需要新素材根时改 `config/local.json`，不要改 `pipeline.json` 的共享默认值。
-8. 发布前跑 `shared validate --strict` 与 `npm run check`。
+- 用户：初始化 → add/fetch/放素材 → `shared credits --write`（可选）→ `validate --strict` → 使用。
+- Agent：`shared status --json` 看缺口，`shared validate --json --strict` 自检；不手改清单结构，需要新资源时报告缺口，由用户 add 或 fetch。
+- 镜头卡：只有设计新引擎/变体时按 `docs/reference/shots/INDEX.md` 查 1–3 张，不整目录读。

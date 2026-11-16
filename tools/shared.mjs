@@ -3,17 +3,33 @@
  * 公共资源层（shared/）与素材库（assets/）的管理入口。
  *
  *   node run.mjs shared init [--force]   生成缺失的目录与空清单（不覆盖已有文件）
- *   node run.mjs shared status           只读：结构、条目数、缺失与未登记
- *   node run.mjs shared validate [--strict]
+ *   node run.mjs shared status [--json]  只读：结构、条目数、缺失与未登记
+ *   node run.mjs shared validate [--strict] [--json]
  *                                        校验清单/字体/音频索引；--strict 让缺失也算失败
+ *   node run.mjs shared fonts [--write]  从清单字体条目生成 shared/fonts.ts
+ *   node run.mjs shared credits [--write] [--force]
+ *                                        从清单生成 shared/CREDITS.md
  *
  * 规范见 docs/architecture/SHARED.md。shared/ 与 assets/ 是内容区（gitignore），
- * 结构与模板由本命令随核心分发。
+ * 结构与模板由本命令随核心分发；资源由用户用 assets add / fetch 提供。
  */
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { loadConfig } from "../modules/lib/config.mjs";
-import { diffAssetFiles, findAssetFile, scanAssetFiles } from "../modules/lib/assets.mjs";
+import {
+  diffAssetFiles,
+  ensureAssetDirs,
+  findAssetFile,
+  renderCredits,
+  resolveAudioFile,
+  scanAssetFiles,
+} from "../modules/lib/assets.mjs";
+import {
+  ensureFontMeta,
+  fontEntries,
+  renderFontsTs,
+  writeFontsTs,
+} from "../modules/lib/fonts.mjs";
 import { writeRegistry } from "../modules/creative/registry.mjs";
 
 const argv = process.argv.slice(2);
@@ -34,7 +50,6 @@ const TEMPLATES = {
     "- `audio/{sfx,music}.index.json`：音效与 BGM 索引",
     "- `presets/`：设计令牌与平台避让等预设（TS 模块）",
     "- `code/`：可选的公共代码（引擎 props 类型、调色板、组件）",
-    "- `shots/`：镜头卡文档（参考资料）",
     "- `variation.json`：裂变变化轴",
     "- `CREDITS.md`：素材来源与许可",
     "",
@@ -65,16 +80,6 @@ const TEMPLATES = {
     "- `icons.json`、`world-dots.json`",
     "",
     "只被一个工程使用的代码放在该工程的 `engine/` 里，不要放这里。",
-    "",
-  ].join("\n"),
-  "shots/README.md": [
-    "# 镜头卡（参考资料）",
-    "",
-    "这些文档是创意参考，不参与任何运行时流程（scan / creative build / mix 都不会读）。",
-    "",
-    "- 设计新引擎、变体或节奏时，按 `INDEX.md` 的分类找 1–3 张相关卡片；",
-    "- 只读需要的卡片，不要整目录通读；",
-    "- 卡片是方法与判例，不是可复制代码；参数按横屏 1920×1080 标定。",
     "",
   ].join("\n"),
   "audio/LICENSES.md": [
@@ -143,23 +148,73 @@ function writeTemplate(relative, force) {
   return true;
 }
 
+function creditsExtras() {
+  const extras = [];
+  if (existsSync(path.join(cfg.paths.repo, "docs", "reference", "shots"))) {
+    extras.push(
+      "## 镜头卡",
+      "",
+      "- 来源：video-shotcraft；许可：Apache 2.0；见 `docs/reference/shots/LICENSE` 与 `ATTRIBUTION.md`。",
+    );
+  }
+  if (existsSync(path.join(sharedRoot, "code", "canvas-engine"))) {
+    extras.push(
+      "## Canvas 绘制引擎",
+      "",
+      "- `shared/code/canvas-engine/engine.js`：作者自有代码，随内容包使用。",
+    );
+  }
+  return extras;
+}
+
 function init() {
   const force = flag("force");
   let created = 0;
+  let wroteTemplateCredits = false;
   for (const key of Object.keys(TEMPLATES)) {
-    if (writeTemplate(key, force)) created += 1;
+    if (writeTemplate(key, force)) {
+      created += 1;
+      if (key === "CREDITS.md") wroteTemplateCredits = true;
+    }
   }
-  for (const root of cfg.assetRoots) {
-    if (existsSync(root)) continue;
-    mkdirSync(root, { recursive: true });
-    console.log(`[shared] + ${rel(root)}/`);
-    created += 1;
+  const dirs = ensureAssetDirs(cfg.assetRoots);
+  for (const dir of dirs) console.log(`[shared] + ${rel(dir)}/`);
+  created += dirs.length;
+
+  const manifestFile = path.join(sharedRoot, "assets.manifest.json");
+  const creditsFile = path.join(sharedRoot, "CREDITS.md");
+  if (existsSync(manifestFile) && (!existsSync(creditsFile) || wroteTemplateCredits)) {
+    const manifest = readJson(manifestFile, { assets: [] });
+    mkdirSync(path.dirname(creditsFile), { recursive: true });
+    writeFileSync(creditsFile, renderCredits(manifest.assets ?? [], { extras: creditsExtras() }));
+    if (!wroteTemplateCredits) {
+      console.log(`[shared] + ${rel(creditsFile)}`);
+      created += 1;
+    } else {
+      console.log(`[shared] CREDITS 已按清单生成：${rel(creditsFile)}`);
+    }
   }
+
+  if (existsSync(manifestFile) && fontEntries(readJson(manifestFile, { assets: [] })).length) {
+    const data = readJson(manifestFile, { assets: [] });
+    const metaChanged = ensureFontMeta(data);
+    if (metaChanged) {
+      writeFileSync(manifestFile, `${JSON.stringify(data, null, 2)}\n`);
+      console.log(`[shared] 字体元数据已补入 ${rel(manifestFile)}`);
+    }
+    const fonts = writeFontsTs(cfg, data, { write: true });
+    console.log(
+      fonts.written
+        ? `[shared] 字体清单已生成：${rel(fonts.file)}（${fonts.entries} 条）`
+        : `[shared] 字体清单最新：${rel(fonts.file)}（${fonts.entries} 条）`,
+    );
+  }
+
   if (!created) console.log("[shared] 结构已完整，未改动");
   else console.log(`[shared] 已生成 ${created} 项`);
   writeRegistry(cfg);
   console.log("[shared] 注册表已按 shared/fonts.ts 更新");
-  console.log("[shared] 下一步：放入素材后运行 node run.mjs sync --apply");
+  console.log("[shared] 下一步：node tools/assets.mjs add <文件|目录|URL> 导入资源，或 node run.mjs sync --apply");
   return 0;
 }
 
@@ -181,13 +236,17 @@ function fontFiles() {
   );
 }
 
-function countFiles(dir, predicate = () => true) {
-  if (!existsSync(dir)) return 0;
-  return readdirSync(dir, { withFileTypes: true }).reduce((sum, entry) => {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) return sum + countFiles(full, predicate);
-    return sum + (predicate(entry.name) ? 1 : 0);
-  }, 0);
+const manifestSnapshot = (manifest) => {
+  const snapshot = structuredClone(manifest ?? { assets: [] });
+  ensureFontMeta(snapshot);
+  return snapshot;
+};
+
+function fontsStale(manifest) {
+  if (!fontEntries(manifest).length) return false;
+  const file = path.join(sharedRoot, "fonts.ts");
+  if (!existsSync(file)) return true;
+  return readFileSync(file, "utf8") !== renderFontsTs(manifestSnapshot(manifest));
 }
 
 function creativeProjects() {
@@ -212,7 +271,6 @@ function statusPayload() {
   );
   const code = ["types.ts", "palette.ts", "parts.tsx", "backdrop.tsx", "assets.ts", "icons.json", "world-dots.json"]
     .filter((file) => existsSync(path.join(sharedRoot, "code", file)));
-  const shots = countFiles(path.join(sharedRoot, "shots"), (name) => name.endsWith(".md"));
   const withAssets = creativeProjects().filter((dir) => existsSync(path.join(dir, "assets")));
 
   return {
@@ -225,12 +283,11 @@ function statusPayload() {
       changed: diff.changed.length,
       missing: diff.missing.length,
     },
-    fonts: { entries: fonts.length, missing: fontsMissing.length },
+    fonts: { entries: fonts.length, missing: fontsMissing.length, stale: fontsStale(manifest) },
     audio: { sfx: (sfx.items ?? []).length, music: (music.tracks ?? []).length },
     presets,
     variation: existsSync(path.join(sharedRoot, "variation.json")),
     code,
-    shots,
     projectsWithAssets: withAssets.length,
     roots: cfg.assetRoots.map((root) => {
       const { found } = scanAssetFiles([root]);
@@ -258,12 +315,13 @@ function status() {
   console.log(
     `  清单：${payload.manifest.entries} 条 / 磁盘 ${payload.manifest.disk} 个文件 / 新增 ${payload.manifest.added} / 变更 ${payload.manifest.changed} / 缺失 ${payload.manifest.missing}`,
   );
-  console.log(`  字体：${payload.fonts.entries} 个文件 / 缺失 ${payload.fonts.missing}`);
+  console.log(
+    `  字体：${payload.fonts.entries} 个文件 / 缺失 ${payload.fonts.missing}${payload.fonts.stale ? " / 清单已过期" : ""}`,
+  );
   console.log(`  音频：sfx ${payload.audio.sfx} / music ${payload.audio.music}`);
   console.log(`  预设：${payload.presets.length ? payload.presets.join("、") : "无"}`);
   console.log(`  变化轴：${payload.variation ? "variation.json" : "无"}`);
   console.log(`  公共代码：${payload.code.length ? payload.code.join("、") : "无"}`);
-  console.log(`  镜头卡：${payload.shots} 个文档`);
   console.log(`  工程自带素材：${payload.projectsWithAssets} 个工程`);
   for (const root of payload.roots) {
     console.log(`  素材根 ${root.path}：${root.exists ? `${root.files} 个文件` : "不存在"}`);
@@ -283,15 +341,15 @@ function validatePayload(strict) {
   } else {
     for (const entry of manifest.assets ?? []) {
       if (!entry.path) errors.push("assets.manifest.json 有条目缺少 path");
-      if (!entry.license || entry.license === "unknown") {
-        warnings.push(`素材未登记许可：${entry.path}`);
-      }
     }
   }
 
   const fonts = fontFiles();
   for (const file of fonts) {
     if (!findAssetFile(cfg.assetRoots, file)) warnings.push(`字体文件缺失：${file}`);
+  }
+  if (manifest && !manifest.__error && fontsStale(manifest)) {
+    warnings.push("shared/fonts.ts 与素材清单不一致（运行 node run.mjs shared fonts --write）");
   }
 
   for (const [name, key] of [
@@ -315,7 +373,7 @@ function validatePayload(strict) {
       else if (seen.has(item.id)) errors.push(`${name} 条目 id 重复：${item.id}`);
       seen.add(item.id);
       if (!item.file) errors.push(`${name} 条目缺少 file：${item.id ?? "?"}`);
-      else if (!findAssetFile(cfg.assetRoots, `${key === "items" ? "sfx" : "music"}/${item.file}`)) {
+      else if (!resolveAudioFile(cfg.assetRoots, key === "items" ? "sfx" : "music", item.file)) {
         warnings.push(`${name} 引用的文件缺失：${item.file}`);
       }
     }
@@ -355,6 +413,82 @@ function validate() {
   return payload.ok ? 0 : 1;
 }
 
+function fonts() {
+  const manifestFile = path.join(sharedRoot, "assets.manifest.json");
+  if (!existsSync(manifestFile)) {
+    console.log("[shared] 没有清单：先运行 node run.mjs shared init");
+    return 1;
+  }
+  const manifest = readJson(manifestFile, { assets: [] });
+  if (manifest.__error) {
+    console.error(`[shared] assets.manifest.json 无法解析：${manifest.__error}`);
+    return 1;
+  }
+  const count = fontEntries(manifest).length;
+  const metaChanged = ensureFontMeta(manifest);
+  const write = flag("write");
+  const result = writeFontsTs(cfg, manifest, { write });
+  if (flag("json")) {
+    console.log(
+      JSON.stringify(
+        {
+          ok: true,
+          entries: count,
+          file: rel(result.file),
+          changed: result.changed,
+          written: result.written,
+          manifestUpdated: write ? metaChanged : false,
+        },
+        null,
+        2,
+      ),
+    );
+    return 0;
+  }
+  if (!write) {
+    console.log(result.text);
+    console.log(
+      `[shared] dry-run：${count} 条字体；加 --write 写入 ${rel(result.file)}`,
+    );
+    return 0;
+  }
+  if (metaChanged) {
+    writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+    console.log(`[shared] 字体元数据已补入 ${rel(manifestFile)}`);
+  }
+  console.log(
+    result.written
+      ? `[shared] 已写 ${rel(result.file)}（${count} 条）`
+      : `[shared] ${rel(result.file)} 已是最新（${count} 条）`,
+  );
+  return 0;
+}
+
+function credits() {
+  const manifestFile = path.join(sharedRoot, "assets.manifest.json");
+  if (!existsSync(manifestFile)) {
+    console.log("[shared] 没有清单：先运行 node run.mjs shared init 或 node run.mjs sync --apply");
+    return 1;
+  }
+  const manifest = readJson(manifestFile, { assets: [] });
+  const entries = manifest.assets ?? [];
+  const file = path.join(sharedRoot, "CREDITS.md");
+  const text = renderCredits(entries, { extras: creditsExtras() });
+  if (!flag("write")) {
+    console.log(text);
+    console.log(`[shared] dry-run：加 --write 写入 ${rel(file)}`);
+    return 0;
+  }
+  if (existsSync(file) && !flag("force")) {
+    console.error(`${rel(file)} 已存在；确认覆盖加 --force`);
+    return 1;
+  }
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, text);
+  console.log(`[shared] 已写 ${rel(file)}（${entries.length} 条）`);
+  return 0;
+}
+
 const code =
   command === "init"
     ? init()
@@ -362,5 +496,11 @@ const code =
       ? status()
       : command === "validate"
         ? validate()
-        : (console.log("用法：node run.mjs shared init|status|validate [--force] [--strict]"), 1);
+        : command === "fonts"
+          ? fonts()
+          : command === "credits"
+            ? credits()
+            : (console.log(
+                "用法：node run.mjs shared init|status|validate|fonts|credits [--force] [--strict] [--json] [--write]",
+              ), 1);
 process.exit(code);

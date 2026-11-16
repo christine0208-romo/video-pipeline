@@ -8,3 +8,9 @@
 - `CanvasStage.tsx` / `ShaderStage.tsx` / `shaders.ts`：Remotion 与 Canvas/WebGL 的通用桥。
 - `assets.ts`：`assetPath()`，把相对素材路径规范成 public URL。
 - `easing.ts`：缓动曲线。
+
+## 来源与许可
+
+- `motion.ts` / `motion-core.mjs`、`time.ts`、`fonts.ts` 源自 fy-code-animation（俯仰观照），上游注明为独立编写；作者免费分享，不得包装成付费课程 / 付费 skills / 收费资料出售。
+- 其余文件为本工作区自写。
+- 第三方依赖与许可见 `docs/operations/DEPENDENCIES.md`。

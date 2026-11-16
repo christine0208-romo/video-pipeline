@@ -1,6 +1,6 @@
 {
   "name": "video-pipeline",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "private": true,
   "description": "Standalone footage scan + generated motion assets + non-repeating vertical mix pipeline.",
   "license": "UNLICENSED",
@@ -14,6 +14,7 @@
     "scan": "node run.mjs scan",
     "creative": "node run.mjs creative",
     "creative:init": "node tools/init-creative.mjs",
+    "creative:registry": "node run.mjs creative registry",
     "shared:init": "node run.mjs shared init",
     "shared:status": "node run.mjs shared status",
     "shared:validate": "node run.mjs shared validate",

@@ -21,8 +21,7 @@ shared/                      # 公共资源与预设（内容包，gitignore）
   variation.json             # 裂变变化轴
   assets.manifest.json       # 素材清单（路径 / 哈希 / 许可 / 下载地址）
   audio/                     # sfx.index.json、music.index.json、LICENSES.md
-  shots/                     # 镜头卡文档（参考资料，不参与运行时）
-  CREDITS.md                 # 素材与许可
+  shared/CREDITS.md          # 素材与许可（生成物）
 
 creative/                    # 创意工程（内容包，gitignore）
   registry.ts                # 自动生成的引擎注册表 + FONT_MANIFEST
@@ -70,6 +69,7 @@ node run.mjs creative new <id> [--name 中文名] [--template graphic] [--force]
 
 ```bash
 node run.mjs creative scan --write-registry
+node run.mjs creative registry [--check]
 ```
 
 `npm run check` 会校验注册表是否最新。

@@ -106,7 +106,7 @@ platform-icons-neon #6   Instagram 图标故障爆发
 4. 透明素材输出 WebM alpha；叠在实拍上检查边缘、黑边、亮度。
 5. 运行 `node run.mjs quality --force`，确认没有 `loop-mismatch` / `end-unsettled` / `end-residue`。
 6. 抽首帧、中帧、末帧人工复查；质量指标不能替代肉眼。
-7. 更新 `docs/architecture/ARCHITECTURE.md`、`CREDITS.md`（如果新增资源）与质量报告。
+7. 更新 `docs/architecture/ARCHITECTURE.md`、`shared/CREDITS.md`（如果新增资源）与质量报告。
 
 ## 7. 当前状态
 
@@ -132,7 +132,7 @@ platform-icons-neon #6   Instagram 图标故障爆发
 
 素材根和实拍根用同一套规则：`pipeline.json` 只放可移植的默认值（`"assets"` / `"footage"`），机器相关的绝对路径写 `config/local.json`（gitignore，参考 `config/local.example.json`）。
 
-没有清单时：渲染不受影响——引擎按相对路径直接读取素材根；`assets check` 会报告“素材根里有 N 个文件未登记”，`node tools/assets.mjs scan --apply`（或 `node run.mjs sync --apply`）可以直接从素材根生成清单，条目默认 `license=unknown`，补许可后再 `--strict`；`assets fetch` 只提示先登记，不会报错。清单只用于许可、哈希与部署，不是渲染的前置条件。
+没有清单时：渲染不受影响——引擎按相对路径直接读取素材根；`assets check` 会报告“素材根里有 N 个文件未登记”，`node tools/assets.mjs scan --apply`（或 `node run.mjs sync --apply`）可以直接从素材根生成清单；`license`/`source` 是可选字段，只有需要署名时才补。`assets fetch` 只提示先登记，不会报错。清单只用于哈希与部署，不是渲染的前置条件。
 
 ```bash
 npm run assets:check          # 缺失检查
@@ -140,9 +140,9 @@ npm run assets:verify         # 额外做 SHA-256
 npm run assets:scan           # 磁盘与清单差异：新增 / 变更 / 缺失
 npm run assets:fetch          # 下载有稳定直链的条目
 npm run assets:fetch -- --from D:/my-assets
-node tools/assets.mjs scan --apply            # 登记新文件（license=unknown，待人工补）
+node tools/assets.mjs scan --apply            # 登记新文件（license / source 可选）
 node tools/assets.mjs scan --apply --prune    # 同时移除已删文件的清单条目
-node tools/assets.mjs check --strict          # license=unknown 时失败
+node tools/assets.mjs check --strict          # 有未登记文件时失败
 ```
 
 没有稳定直链的条目（部分图标、Impact/Digital 音效、Kevin MacLeod 曲目、品牌 logo、中文展示字体）需要用户通过 `--from` 提供。

@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { readJson } from "../lib/fsx.mjs";
 
@@ -16,6 +16,7 @@ const toFileImport = (from, file) =>
 
 export function listEnginePackages(cfg) {
   const root = cfg.paths.creative;
+  if (!existsSync(root)) return [];
   const packages = [];
   const enginesDir = path.join(root, "engines");
 
@@ -141,6 +142,7 @@ export function generateRegistry(cfg) {
 export function writeRegistry(cfg) {
   const file = path.join(cfg.paths.creative, "registry.ts");
   const content = generateRegistry(cfg);
+  mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, content);
   return file;
 }

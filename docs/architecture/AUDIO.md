@@ -10,12 +10,12 @@
 | BGM | AERIS MUSIC CC0 production music | CC0 1.0 | `shared/audio/music.index.json` |
 | BGM（备用） | Kevin MacLeod / incompetech | CC BY 4.0 | `shared/audio/music.index.json` |
 
-音频文件本身在素材根 `assets/{sfx,music}`；索引属于内容包，缺失时静音，不报错。
+音频文件放在素材根 `assets/` 的任意位置；索引条目的 `file` 写**相对素材根**的路径（如 `music/x.mp3`、`custom/intro.wav`）。旧版裸文件名（`ui-tap.wav`）继续兼容。索引属于内容包，缺失时静音，不报错。
 
 - Kenney：https://kenney.nl/assets/ui-audio、https://kenney.nl/assets/interface-sounds、https://kenney.nl/assets/impact-sounds、https://kenney.nl/assets/digital-audio
 - AERIS MUSIC：https://github.com/farmmer938-lgtm/aeris-cc0-music
 - 音效已本地转为 48kHz / 16-bit WAV，并做 -18 LUFS 归一化。
-- 库内 BGM 由 `resolveMusic` 输出 `music/<file>`，通过 `public/music` 目录链接读取；外部音乐复制到 `public/audio`，不使用文件符号链接。
+- 库内音频由 `resolveAudioFile(roots, kind, file)` 解析：含 `/` 的路径先按原路径、再按 `kind/原路径`；裸文件名先按 `kind/名`、再按原名。命中后输出 `assets/<相对路径>`，通过 `public/assets` 合并目录读取；仓外绝对路径才复制到 `public/audio`。
 - CC BY 曲目（`Crypto`、`Floating Cities`）只在需要时使用，发布时必须保留署名。
 
 ## 2. 叙事角色 → 声音设计
@@ -120,7 +120,7 @@ node run.mjs mix --duration 12 --no-music
 node run.mjs mix --duration 12 --no-sfx
 ```
 
-- `mix.music` 支持 `null`、`"auto"`、曲目 id、文件路径，或对象。
+- `mix.music` 支持 `null`、`"auto"`、曲目 id、相对素材根的路径（`--music custom/theme.mp3`）、仓外绝对路径，或对象。
 - `mix.bpm` 为空时使用选中曲目的 BPM；没有音乐时用 90。
 - `--no-music` / `--no-sfx` 用于关闭对应轨道。
 
@@ -128,6 +128,25 @@ node run.mjs mix --duration 12 --no-sfx
 
 1. 从 CC0 或明确许可的来源取文件；优先 CC0。
 2. 转成 48kHz / 16-bit WAV，做 -18 LUFS 归一化。
-3. 在 `shared/audio/sfx.index.json` 增加 `id / file / category / gain / duration / source / license`。
-4. 用 `node tools/assets.mjs scan --apply` 登记素材，并在 `shared/CREDITS.md` 补许可与署名。
-5. 若新增类别，先在 `docs/architecture/ARCHITECTURE.md` 与本文的映射表里写清用途。
+3. 用 `node tools/assets.mjs add <文件> --license <许可>` 导入，或放进素材根后运行 `node tools/assets.mjs audio scan --apply`；索引条目自动生成（`id / file / duration`）。
+4. 用 `node tools/assets.mjs audio set <id> --category ... --gain ...` 补元数据。
+5. 需要署名时再补 `license`/`source` 并重新生成 `shared/CREDITS.md`。
+6. 若新增类别，先在 `docs/architecture/ARCHITECTURE.md` 与本文的映射表里写清用途。
+
+## 12. 维护索引
+
+`shared/audio/{music,sfx}.index.json` 是混剪的选曲目录，不建议手改，用命令维护：
+
+```bash
+# 新文件放进素材根任意位置（不必是 music/、sfx/）
+node tools/assets.mjs audio scan --apply    # 扫描所有素材根，登记未编入索引的音频，时长用 ffprobe
+node tools/assets.mjs audio set <id> --bpm 96 --mood cinematic --energy medium   # BGM 元数据
+node tools/assets.mjs audio set <id> --category tap --gain 0.4                  # 音效
+node tools/assets.mjs audio list
+```
+
+- 索引 `file` 写相对素材根路径；`music/`、`sfx/` 一级目录优先决定 kind，其他目录 `.wav` 视为音效、其余视为音乐；
+- 旧版裸文件名（`ui-tap.wav`）继续可用，不需要迁移；
+- 新 BGM 默认 `mood/energy=unknown`，不填也能用，但自动选曲会按 `config.mix.music.mood/energy` 打分，建议补上；
+- 新音效默认 `category=unknown`，planner 不会主动选它，补 `category` 后才会进入对应事件；
+- `license` / `source` 可选，需要署名时再补；`shared credits` 会带进 `shared/CREDITS.md`。

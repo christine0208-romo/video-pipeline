@@ -12,8 +12,8 @@
 
 | 包 | 版本 | 用途 | 许可 |
 |---|---|---|---|
-| `remotion` | 4.0.539 | 视频框架、`OffthreadVideo`、`Audio`、`Sequence` | Remotion License |
-| `@remotion/cli` | 4.0.539 | 渲染与 Studio CLI | Remotion License |
+| `remotion` | 4.0.539 | 视频框架、`OffthreadVideo`、`Audio`、`Sequence` | Remotion License（个人与 ≤3 人公司免费，更大组织需购买） |
+| `@remotion/cli` | 4.0.539 | 渲染与 Studio CLI | Remotion License（个人与 ≤3 人公司免费，更大组织需购买） |
 | `react` | 19.2.3 | 组件运行时 | MIT |
 | `react-dom` | 19.2.3 | DOM 渲染 | MIT |
 | `lucide-react` | 1.69.0 | 通用图标 | ISC |
@@ -64,6 +64,8 @@
 | libvpx-vp9 | ffmpeg 编解码器 | 透明 WebM alpha |
 | Chrome / headless shell | Remotion 可调用 | 浏览器渲染 |
 | npm | 使用 `package-lock.json` | 安装核心 npm 依赖 |
+
+ffmpeg / ffprobe 不随仓库分发，许可取决于本机构建。
 
 可选项目环境：
 

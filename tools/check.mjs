@@ -51,10 +51,7 @@ function walk(dir) {
 }
 
 const required = [
-  "CLAUDE.md",
   "README.md",
-  "STATUS.md",
-  "CREDITS.md",
   "config/pipeline.json",
   "config/pipeline.schema.json",
   "config/components.json",
@@ -63,8 +60,7 @@ const required = [
   "src/index.ts",
   "src/platform.ts",
   "src/types.ts",
-  "modules/scan/index.mjs",
-  "modules/creative/index.mjs",
+  "modules/scan/index.mjs",  "modules/creative/index.mjs",
   "modules/creative/loader.mjs",
   "modules/creative/params.mjs",
   "modules/creative/compile.mjs",
@@ -94,6 +90,7 @@ const required = [
   "tools/reconcile-runtime.mjs",
   "tools/migrate-public.mjs",
   "docs/reference/RULES.md",
+  "docs/reference/shots/INDEX.md",
   "docs/architecture/SHARED.md",
   "docs/records/LESSONS.md",
   "docs/operations/WORKFLOW.md",
@@ -163,7 +160,7 @@ const manifestFile = path.join(cfg.paths.shared, "assets.manifest.json");
 if (existsSync(manifestFile)) {
   const assetsCheck = spawnSync(
     process.execPath,
-    [path.join(ROOT, "tools", "assets.mjs"), "check", "--verify"],
+    [path.join(ROOT, "tools", "assets.mjs"), "check", "--verify", "--allow-missing"],
     { cwd: ROOT, encoding: "utf8" },
   );
   if (assetsCheck.status !== 0) {

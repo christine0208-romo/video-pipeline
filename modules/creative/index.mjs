@@ -14,6 +14,7 @@ const HELP = `用法：node run.mjs creative <子命令> [参数]
 子命令：
   scan [--json] [--write-registry|--check-registry]
                            列出创意工程、变体与校验结果；生成/校验引擎注册表
+  registry [--check]       重写 creative/registry.ts；--check 只检查是否最新
   new <id> [--name 名称] [--template graphic] [--force]
                            从模板新建一个最小创意工程（不改 src/，不依赖素材）
   validate [--strict] [--json]  校验 creative/ 数据；--strict 把警告也视为失败
@@ -139,6 +140,19 @@ function commandValidate(cfg, { strict = false, json = false } = {}) {
     return 1;
   }
   console.log("[creative] 校验通过");
+  return 0;
+}
+
+function commandRegistry(cfg, { check = false } = {}) {
+  if (check) {
+    const status = registryStatus(cfg);
+    console.log(
+      status.ok ? "[creative] 注册表已是最新" : `[creative] ${status.reason}`,
+    );
+    return status.ok ? 0 : 1;
+  }
+  const file = writeRegistry(cfg);
+  console.log(`[creative] 注册表已重写：${file}`);
   return 0;
 }
 
@@ -471,6 +485,8 @@ try {
       templateName: cfg.flags.template ?? "graphic",
       force: Boolean(cfg.flags.force),
     });
+  } else if (command === "registry") {
+    code = commandRegistry(cfg, { check: Boolean(cfg.flags.check) });
   } else if (command === "scan") code = commandScan(cfg, options);
   else if (command === "validate") code = commandValidate(cfg, options);
   else if (command === "plan") code = commandPlan(cfg, options);

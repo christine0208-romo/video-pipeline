@@ -104,7 +104,9 @@ function checkGeneratedManifest() {
 
   if (!keys.length) return;
 
-  const variationFile = path.join(creativeRoot, "shared", "variation.json");
+  const pipeline = JSON.parse(readFileSync(CONFIG, "utf8"));
+  const sharedRoot = path.join(ROOT, pipeline.shared?.root ?? "shared");
+  const variationFile = path.join(sharedRoot, "variation.json");
   if (!existsSync(variationFile)) return;
   const variation = JSON.parse(readFileSync(variationFile, "utf8"));
   for (const id of variation.camera?.bases ?? []) {
