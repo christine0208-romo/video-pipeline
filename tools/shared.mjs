@@ -7,6 +7,8 @@
  *   node run.mjs shared validate [--strict] [--json]
  *                                        校验清单/字体/音频索引；--strict 让缺失也算失败
  *   node run.mjs shared fonts [--write]  从清单字体条目生成 shared/fonts.ts
+ *   node run.mjs shared requirements [--json] [--strict]
+ *                                        校验 shared/requirements.json 的资源缺口
  *   node run.mjs shared credits [--write] [--force]
  *                                        从清单生成 shared/CREDITS.md
  *
@@ -30,6 +32,7 @@ import {
   renderFontsTs,
   writeFontsTs,
 } from "../modules/lib/fonts.mjs";
+import { requirementsStatus } from "../modules/lib/resources.mjs";
 import { writeRegistry } from "../modules/creative/registry.mjs";
 
 const argv = process.argv.slice(2);
@@ -46,7 +49,8 @@ const TEMPLATES = {
     "本目录由系统初始化、校验与统计，用户负责放入与维护资源；结构规范见 `docs/architecture/SHARED.md`。",
     "",
     "- `assets.manifest.json`：素材清单（路径 / 哈希 / 许可 / 来源 / 下载地址）",
-    "- `fonts.ts`：字体清单（`FONT_MANIFEST`）",
+    "- `fonts.ts`：字体清单（`FONT_MANIFEST`，由清单生成）",
+    "- `requirements.json`：内容侧资源需求（字体族、音效类别、BGM 情绪、kind 数量）",
     "- `audio/{sfx,music}.index.json`：音效与 BGM 索引",
     "- `presets/`：设计令牌与平台避让等预设（TS 模块）",
     "- `code/`：可选的公共代码（引擎 props 类型、调色板、组件）",
@@ -114,6 +118,17 @@ const TEMPLATES = {
     "export const FONT_MANIFEST: FontSpec[] = [];",
     "",
   ].join("\n"),
+  "requirements.json":
+    JSON.stringify(
+      {
+        version: 1,
+        fonts: [],
+        audio: { sfx: [], musicMoods: [] },
+        kinds: {},
+      },
+      null,
+      2,
+    ) + "\n",
   "presets/design.ts": [
     "/** 项目设计令牌与平台避让区（内容预设，按项目修改）。 */",
     "",
@@ -464,6 +479,33 @@ function fonts() {
   return 0;
 }
 
+function requirements() {
+  const payload = requirementsStatus(cfg);
+  const strict = flag("strict");
+  if (flag("json")) {
+    console.log(JSON.stringify(payload, null, 2));
+    return payload.ok || !strict ? 0 : 1;
+  }
+  if (!payload.declared) {
+    console.log(`[shared] 未声明 requirements.json（可选）：${payload.file}`);
+    return 0;
+  }
+  if (payload.error) {
+    console.error(`[shared] requirements.json 无法解析：${payload.error}`);
+    return 1;
+  }
+  for (const item of payload.present) {
+    console.log(`  ✓ ${item.type} ${item.label}`);
+  }
+  for (const item of payload.missing) {
+    console.log(`  ✗ ${item.type} ${item.label}`);
+  }
+  console.log(
+    `[shared] 需求：满足 ${payload.present.length} / 缺失 ${payload.missing.length}`,
+  );
+  return payload.ok || !strict ? 0 : 1;
+}
+
 function credits() {
   const manifestFile = path.join(sharedRoot, "assets.manifest.json");
   if (!existsSync(manifestFile)) {
@@ -498,9 +540,11 @@ const code =
         ? validate()
         : command === "fonts"
           ? fonts()
-          : command === "credits"
-            ? credits()
-            : (console.log(
-                "用法：node run.mjs shared init|status|validate|fonts|credits [--force] [--strict] [--json] [--write]",
-              ), 1);
+          : command === "requirements"
+            ? requirements()
+            : command === "credits"
+              ? credits()
+              : (console.log(
+                  "用法：node run.mjs shared init|status|validate|fonts|requirements|credits [--force] [--strict] [--json] [--write]",
+                ), 1);
 process.exit(code);

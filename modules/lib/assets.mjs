@@ -32,9 +32,10 @@ export function ensureAssetDirs(roots) {
 }
 
 export function renderCredits(entries, { extras = [] } = {}) {
+  const normalizeKind = (kind) => String(kind ?? "other").replace(/s$/, "");
   const groups = new Map();
   for (const entry of entries) {
-    const kind = entry.kind ?? "other";
+    const kind = normalizeKind(entry.kind);
     if (!groups.has(kind)) groups.set(kind, []);
     groups.get(kind).push(entry);
   }

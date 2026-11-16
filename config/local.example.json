@@ -12,5 +12,8 @@
   "tools": {
     "ffmpeg": "ffmpeg",
     "ffprobe": "ffprobe"
+  },
+  "market": {
+    "providers": {}
   }
 }

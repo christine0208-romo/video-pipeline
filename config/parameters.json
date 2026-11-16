@@ -4,49 +4,49 @@
     "scan": {
       "label": "扫描素材",
       "fields": [
-        {"name":"limit","flag":"limit","label":"限制条数","type":"number","placeholder":"全部"},
-        {"name":"roots","flag":"roots","label":"素材根（逗号分隔）","type":"text","placeholder":"默认 config"},
-        {"name":"check","flag":"check","label":"只检查是否有变化","type":"checkbox"}
+        {"name":"limit","flag":"limit","label":"限制条数","type":"number","placeholder":"全部","hint":"只扫描前 N 个新文件，用于调试；留空扫描全部"},
+        {"name":"roots","flag":"roots","label":"素材根（逗号分隔）","type":"text","placeholder":"默认 config","hint":"临时覆盖素材根，逗号分隔；默认读 config/local.json"},
+        {"name":"check","flag":"check","label":"只检查是否有变化","type":"checkbox","hint":"只检查新增/变更，不写入素材库；有变化时退出码为 2"}
       ]
     },
     "quality": {
       "label": "质量分析",
       "fields": [
-        {"name":"force","flag":"force","label":"强制重算","type":"checkbox"},
-        {"name":"reportOnly","flag":"report-only","label":"只读已存结果","type":"checkbox"},
-        {"name":"strict","flag":"strict","label":"有问题时失败","type":"checkbox"},
-        {"name":"layer","flag":"layer","label":"层","type":"text","placeholder":"scene,overlay,transition"},
-        {"name":"scope","flag":"scope","label":"范围","type":"text","placeholder":"shared / work"},
-        {"name":"edl","flag":"edl","label":"检查指定 EDL","type":"text","placeholder":"mix-20261117-1"}
+        {"name":"force","flag":"force","label":"强制重算","type":"checkbox","hint":"忽略缓存，重新抽帧分析全部生成素材"},
+        {"name":"reportOnly","flag":"report-only","label":"只读已存结果","type":"checkbox","hint":"只读已存质量数据，不重新抽帧分析"},
+        {"name":"strict","flag":"strict","label":"有问题时失败","type":"checkbox","hint":"存在近似重复或质量失败时以非零码退出"},
+        {"name":"layer","flag":"layer","label":"层","type":"text","placeholder":"scene,overlay,transition","hint":"只分析指定层，逗号分隔"},
+        {"name":"scope","flag":"scope","label":"范围","type":"text","placeholder":"shared / work","hint":"只分析 shared 或 work 范围"},
+        {"name":"edl","flag":"edl","label":"检查指定 EDL","type":"text","placeholder":"mix-20261117-1","hint":"只检查指定 EDL 引用的素材是否有近似重复或质量问题"}
       ]
     },
     "mix": {
       "label": "混剪成片",
       "fields": [
-        {"name":"duration","flag":"duration","label":"时长（秒）","type":"number","placeholder":"30"},
-        {"name":"outputs","flag":"outputs","label":"成片条数","type":"number","placeholder":"1"},
-        {"name":"seed","flag":"seed","label":"seed","type":"number","placeholder":"配置值"},
-        {"name":"shotLength","flag":"shot-length","label":"目标镜头长度（秒）","type":"number","placeholder":"2.2"},
-        {"name":"work","flag":"work","label":"只用指定 work","type":"text","placeholder":"work-20261121-1"},
-        {"name":"requireWorkAsset","flag":"require-work-asset","label":"必须使用 work 素材","type":"checkbox"},
-        {"name":"dryRun","flag":"dry-run","label":"只规划不渲染","type":"checkbox"},
-        {"name":"noMusic","flag":"no-music","label":"关闭 BGM","type":"checkbox"},
-        {"name":"noSfx","flag":"no-sfx","label":"关闭 SFX","type":"checkbox"},
-        {"name":"allowDraft","flag":"allow-draft","label":"允许 draft","type":"checkbox"},
-        {"name":"allowLow","flag":"allow-low-quality","label":"允许低质量素材","type":"checkbox"}
+        {"name":"duration","flag":"duration","label":"时长（秒）","type":"number","placeholder":"30","hint":"成片总时长（秒）"},
+        {"name":"outputs","flag":"outputs","label":"成片条数","type":"number","placeholder":"1","hint":"一次生成的成片条数"},
+        {"name":"seed","flag":"seed","label":"seed","type":"number","placeholder":"配置值","hint":"随机种子；相同 seed 与配置可复现规划"},
+        {"name":"shotLength","flag":"shot-length","label":"目标镜头长度（秒）","type":"number","placeholder":"2.2","hint":"目标镜头长度；实际范围约为 0.8–1.25 倍"},
+        {"name":"work","flag":"work","label":"只用指定 work","type":"text","placeholder":"work-20261121-1","hint":"只使用 shared + 指定 work 的素材"},
+        {"name":"requireWorkAsset","flag":"require-work-asset","label":"必须使用 work 素材","type":"checkbox","hint":"要求成片至少使用一条指定 work 的素材"},
+        {"name":"dryRun","flag":"dry-run","label":"只规划不渲染","type":"checkbox","hint":"只规划并写 EDL，不渲染视频"},
+        {"name":"noMusic","flag":"no-music","label":"关闭 BGM","type":"checkbox","hint":"关闭背景音乐"},
+        {"name":"noSfx","flag":"no-sfx","label":"关闭 SFX","type":"checkbox","hint":"关闭音效"},
+        {"name":"allowDraft","flag":"allow-draft","label":"允许 draft","type":"checkbox","hint":"允许使用待审核（draft）的生成素材"},
+        {"name":"allowLow","flag":"allow-low-quality","label":"允许低质量素材","type":"checkbox","hint":"允许使用质量检查不达标的生成素材"}
       ]
     },
     "fission": {
       "label": "批量裂变",
       "fields": [
-        {"name":"works","flag":"works","label":"作品数量","type":"number","placeholder":"1"},
-        {"name":"withAssets","flag":"with-assets","label":"生成作品专属素材","type":"checkbox"},
-        {"name":"seed","flag":"seed","label":"seed","type":"number","placeholder":"配置值"},
-        {"name":"duration","flag":"duration","label":"每条时长（秒）","type":"number","placeholder":"30"},
-        {"name":"perLayer","flag":"per-layer","label":"每层素材 scene,overlay,transition","type":"text","placeholder":"1,2,2"},
-        {"name":"work","flag":"work","label":"只做指定 work","type":"text","placeholder":"t1"},
-        {"name":"dryRun","flag":"dry-run","label":"只规划不渲染","type":"checkbox"},
-        {"name":"force","flag":"force","label":"强制重渲素材","type":"checkbox"}
+        {"name":"works","flag":"works","label":"作品数量","type":"number","placeholder":"1","hint":"生成几个独立作品"},
+        {"name":"withAssets","flag":"with-assets","label":"生成作品专属素材","type":"checkbox","hint":"为每个作品生成专属素材；默认只用 shared 素材"},
+        {"name":"seed","flag":"seed","label":"seed","type":"number","placeholder":"配置值","hint":"作品 seed；默认由 work id 派生"},
+        {"name":"duration","flag":"duration","label":"每条时长（秒）","type":"number","placeholder":"30","hint":"每个作品成片时长（秒）"},
+        {"name":"perLayer","flag":"per-layer","label":"每层素材 scene,overlay,transition","type":"text","placeholder":"1,2,2","hint":"每层生成数量：场景、叠加、转场"},
+        {"name":"work","flag":"work","label":"只做指定 work","type":"text","placeholder":"t1","hint":"只处理指定 work"},
+        {"name":"dryRun","flag":"dry-run","label":"只规划不渲染","type":"checkbox","hint":"只规划不渲染"},
+        {"name":"force","flag":"force","label":"强制重渲素材","type":"checkbox","hint":"强制重新渲染已有素材"}
       ]
     },
     "check": {"label":"校验已有 EDL","fields":[]}

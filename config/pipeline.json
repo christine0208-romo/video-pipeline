@@ -141,6 +141,17 @@
     ],
     "pool": "all"
   },
+  "market": {
+    "defaults": {
+      "type": "iconify",
+      "kind": "icon",
+      "baseUrl": "https://api.iconify.design",
+      "cacheHours": 24,
+      "searchPlaceholder": "搜索图标",
+      "searchLimit": 24,
+      "collectionLimit": 120
+    }
+  },
   "quality": {
     "autoAnalyze": true,
     "sampleFrames": 8,

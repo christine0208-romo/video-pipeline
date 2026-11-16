@@ -11,6 +11,8 @@ const state = {
   config: null,
   parameters: null,
   jobs: null,
+  resources: null,
+  modules: null,
   page: null,
   modalOpen: false,
   assetTab: "generated",
@@ -29,78 +31,35 @@ const state = {
     q: "",
   },
   footageQuery: "",
+  resourceTab: "manifest",
+  resourceQuery: "",
   taskStage: "mix",
   taskValues: {},
   selectedJob: null,
   eventSource: null,
+  labels: null,
+  resourceMode: "local",
+  market: {
+    providers: null,
+    defaults: null,
+    providerId: null,
+    result: null,
+    featured: null,
+    collection: null,
+    query: "",
+    error: null,
+  },
   timers: { status: null, jobs: null },
 };
 
-const CATEGORY_LABELS = {
-  icon: "图标",
-  text: "文字",
-  transition: "转场",
-  particle: "粒子",
-  camera: "镜头",
-  ui: "界面",
-  graphic: "图形",
-};
-
-const LAYER_LABELS = {
-  scene: "场景层",
-  overlay: "叠加层",
-  transition: "转场层",
-};
-
-const STATUS_LABELS = {
-  approved: "已批准",
-  draft: "待审核",
-  retired: "已退役",
-};
-
-const FLAG_LABELS = {
-  static: "静止",
-  blank: "空白",
-  "faint-alpha": "极淡透明",
-  "empty-alpha": "空透明",
-  "alpha-unknown": "透明未知",
-  "loop-mismatch": "循环不闭合",
-  "end-unsettled": "末帧未稳定",
-  "end-residue": "末帧残留",
-};
-
-const JOB_STATUS_LABELS = {
-  queued: "排队中",
-  running: "运行中",
-  done: "完成",
-  failed: "失败",
-  cancelled: "已取消",
-  interrupted: "已中断",
-};
-
-const STAGE_LABELS = {
-  scan: "扫描素材",
-  creative: "创意工程",
-  quality: "质量分析",
-  mix: "混剪成片",
-  fission: "批量裂变",
-  check: "校验 EDL",
-};
-
 const PAGE_META = {
-  overview: { title: "概览", subtitle: "素材、任务、成片与质量的一览" },
+  overview: { title: "概览", subtitle: "素材、模块、任务、成片与质量的一览" },
+  resources: { title: "资源", subtitle: "本地素材、字体、音频与在线资源市场" },
   assets: { title: "素材", subtitle: "生成素材与实拍素材浏览、审核" },
   creative: { title: "创意", subtitle: "数据驱动的创意工程：参数、文案、变体与素材" },
   tasks: { title: "任务", subtitle: "按参数运行流水线阶段，查看实时日志" },
   outputs: { title: "成片", subtitle: "已渲染成片与对应时间线摘要" },
   quality: { title: "质量", subtitle: "感知聚类、近似重复与覆盖矩阵" },
-};
-
-const MATRIX_LABELS = {
-  paletteByLayer: "调色板 × 层",
-  creativeByPalette: "创意工程 × 调色板",
-  engineByLayer: "引擎 × 层",
-  scopeByLayer: "范围 × 层",
 };
 
 /* ------------------------------------------------------------------ utils */
@@ -115,6 +74,36 @@ const esc = (value) =>
     '"': "&quot;",
     "'": "&#39;",
   })[char]);
+
+function labelEntry(group, value) {
+  return state.labels?.groups?.[group]?.[value] ?? null;
+}
+
+function labelOf(group, value) {
+  return labelEntry(group, value)?.label ?? String(value ?? "—");
+}
+
+function hintOf(group, value) {
+  return labelEntry(group, value)?.hint ?? "";
+}
+
+function hintAttr(group, value) {
+  const hint = hintOf(group, value);
+  return hint ? ` data-hint="${esc(hint)}"` : "";
+}
+
+function labelWithHint(group, value) {
+  const hint = hintOf(group, value);
+  const label = esc(labelOf(group, value));
+  return hint ? `<span data-hint="${esc(hint)}">${label}</span>` : label;
+}
+
+const qhint = (key) => hintAttr("qualityMetric", key);
+
+const qmark = (key) => {
+  const hint = hintOf("qualityMetric", key);
+  return hint ? `<span class="hint-dot" data-hint="${esc(hint)}">?</span>` : "";
+};
 
 async function api(path, options = {}) {
   const response = await fetch(path, options);
@@ -161,7 +150,7 @@ function fmtDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   const pad = (n) => String(n).padStart(2, "0");
-  return `${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 function fmtNum(value, digits = 3) {
@@ -176,29 +165,29 @@ function fmtPercent(value) {
 }
 
 function categoryLabel(value) {
-  return CATEGORY_LABELS[value] ?? value ?? "—";
+  return labelOf("category", value);
 }
 
 function layerLabel(value) {
-  return LAYER_LABELS[value] ?? value ?? "—";
+  return labelOf("layer", value);
 }
 
 function statusLabel(value) {
-  return STATUS_LABELS[value] ?? value ?? "—";
+  return labelOf("status", value);
 }
 
 function flagLabel(value) {
-  return FLAG_LABELS[value] ?? value;
+  return labelOf("qualityFlag", value);
 }
 
 function stageLabel(value) {
-  return STAGE_LABELS[value] ?? value ?? "—";
+  return labelOf("stage", value);
 }
 
 function jobStatusBadge(status) {
   const cls =
     status === "running" ? "accent" : status === "done" ? "ok" : status === "failed" ? "danger" : status === "queued" ? "warn" : "";
-  return `<span class="badge ${cls}">${esc(JOB_STATUS_LABELS[status] ?? status)}</span>`;
+  return `<span class="badge ${cls}">${esc(labelOf("jobStatus", status))}</span>`;
 }
 
 function statusBadge(status) {
@@ -218,6 +207,50 @@ function releaseVideos() {
       /* ignore */
     }
   }
+  for (const audio of document.querySelectorAll("audio")) {
+    try {
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+const PREVIEW_MODES = [
+  { key: "dark", label: "深色" },
+  { key: "light", label: "浅色" },
+  { key: "checker", label: "棋盘" },
+];
+
+function applyPreviewMode(key) {
+  const mode = PREVIEW_MODES.find((item) => item.key === key) ?? PREVIEW_MODES[0];
+  document.body.dataset.preview = mode.key;
+  const button = $("#previewBg");
+  if (button) button.textContent = `预览底色：${mode.label}`;
+  try {
+    localStorage.setItem("vp.previewBg", mode.key);
+  } catch {
+    /* ignore */
+  }
+}
+
+function initPreviewMode() {
+  let saved = "checker";
+  try {
+    saved = localStorage.getItem("vp.previewBg") ?? "checker";
+  } catch {
+    /* ignore */
+  }
+  applyPreviewMode(saved);
+  const button = $("#previewBg");
+  if (!button) return;
+  button.onclick = () => {
+    const current = document.body.dataset.preview ?? "dark";
+    const index = PREVIEW_MODES.findIndex((item) => item.key === current);
+    applyPreviewMode(PREVIEW_MODES[(index + 1) % PREVIEW_MODES.length].key);
+  };
 }
 
 /* ------------------------------------------------------------------ toast */
@@ -310,6 +343,39 @@ async function loadJobs(force = false) {
   return state.jobs;
 }
 
+async function loadResources(force = false) {
+  if (state.resources && !force) return state.resources;
+  state.resources = await api("/api/resources");
+  return state.resources;
+}
+
+async function loadModules(force = false) {
+  if (state.modules && !force) return state.modules;
+  state.modules = await api("/api/modules");
+  return state.modules;
+}
+
+async function loadLabels() {
+  if (state.labels) return state.labels;
+  state.labels = await api("/api/labels");
+  renderChrome();
+  return state.labels;
+}
+
+async function loadMarketProviders() {
+  if (state.market.providers) return state.market.providers;
+  const data = await api("/api/market/providers");
+  state.market.providers = data.providers ?? {};
+  state.market.defaults = data.defaults ?? {};
+  if (!state.market.providerId) {
+    state.market.providerId =
+      Object.keys(state.market.providers).find(
+        (id) => state.market.providers[id]?.enabled !== false,
+      ) ?? Object.keys(state.market.providers)[0] ?? null;
+  }
+  return state.market.providers;
+}
+
 /* ------------------------------------------------------------------ chrome */
 
 function renderChrome() {
@@ -371,6 +437,7 @@ async function route() {
 
   try {
     if (page === "overview") await renderOverview();
+    else if (page === "resources") await renderResources();
     else if (page === "assets") await renderAssets();
     else if (page === "creative") await renderCreative();
     else if (page === "tasks") await renderTasks();
@@ -391,7 +458,10 @@ function setActions(html) {
 let lastOverviewSignature = null;
 
 async function renderOverview() {
-  const status = await loadStatus(true);
+  const [status, modules] = await Promise.all([
+    loadStatus(true),
+    loadModules(true),
+  ]);
   const counts = status.counts;
   const quality = status.quality;
   const outputs = status.recentOutputs ?? [];
@@ -450,10 +520,10 @@ async function renderOverview() {
     ? `<div class="panel">
         <div class="panel-head"><h2>质量摘要</h2><button class="btn" id="gotoQuality">质量报告</button></div>
         <div class="stats">
-          <div class="stat"><div class="label">已分析</div><div class="value">${quality.analyzed ?? "—"}</div><div class="hint">共 ${quality.assets ?? "—"} 条</div></div>
-          <div class="stat"><div class="label">感知簇</div><div class="value">${quality.clusters ?? "—"}</div><div class="hint">多样性 ${fmtNum(quality.diversity, 3)}</div></div>
-          <div class="stat"><div class="label">近似重复</div><div class="value">${quality.nearDuplicates ?? "—"}</div><div class="hint">对</div></div>
-          <div class="stat"><div class="label">警告</div><div class="value">${quality.warnings ?? 0}</div><div class="hint">失败 ${quality.flagged ?? 0}</div></div>
+          <div class="stat"><div class="label"${qhint("analyzed")}>已分析${qmark("analyzed")}</div><div class="value">${quality.analyzed ?? "—"}</div><div class="hint">共 ${quality.assets ?? "—"} 条</div></div>
+          <div class="stat"><div class="label"${qhint("clusters")}>感知簇${qmark("clusters")}</div><div class="value">${quality.clusters ?? "—"}</div><div class="hint">多样性 ${fmtNum(quality.diversity, 3)}</div></div>
+          <div class="stat"><div class="label"${qhint("nearDuplicates")}>近似重复${qmark("nearDuplicates")}</div><div class="value">${quality.nearDuplicates ?? "—"}</div><div class="hint">对</div></div>
+          <div class="stat"><div class="label"${qhint("warnings")}>警告${qmark("warnings")}</div><div class="value">${quality.warnings ?? 0}</div><div class="hint">失败 ${quality.flagged ?? 0}</div></div>
         </div>
       </div>`
     : "";
@@ -466,6 +536,10 @@ async function renderOverview() {
       <div class="stat"><div class="label">成片</div><div class="value">${counts.outputs}</div><div class="hint">${counts.retired ? `退役素材 ${counts.retired}` : "out/ 目录"}</div></div>
     </div>
     ${jobPanel}
+    <h2 class="section-title">模块状态</h2>
+    <div class="grid module-grid">
+      ${modules.modules.map(moduleCardHtml).join("")}
+    </div>
     ${outputPanel}
     ${qualityPanel}
   `;
@@ -478,6 +552,10 @@ async function renderOverview() {
   if (gotoOutputs) gotoOutputs.onclick = () => (location.hash = "#/outputs");
   const gotoQuality = $("#gotoQuality");
   if (gotoQuality) gotoQuality.onclick = () => (location.hash = "#/quality");
+
+  for (const button of document.querySelectorAll("[data-module-check]")) {
+    button.onclick = () => runModuleCheck(button.dataset.moduleCheck);
+  }
 
   for (const node of document.querySelectorAll("[data-output]")) {
     node.onclick = () => (location.hash = "#/outputs");
@@ -493,6 +571,1178 @@ function overviewSignature(status) {
     status.recentOutputs?.map((output) => output.id),
     status.quality?.generatedAt,
   ]);
+}
+
+/* ------------------------------------------------------------------ market-in-resources */
+
+function resourceModeSwitch() {
+  return `<div class="tabs" id="resourceMode">
+    <button data-resource-mode="local"${hintAttr("resourceMode", "local")} class="${state.resourceMode === "local" ? "active" : ""}">${esc(labelOf("resourceMode", "local"))}</button>
+    <button data-resource-mode="market"${hintAttr("resourceMode", "market")} class="${state.resourceMode === "market" ? "active" : ""}">${esc(labelOf("resourceMode", "market"))}</button>
+  </div>`;
+}
+
+function bindResourceMode() {
+  for (const button of document.querySelectorAll("#resourceMode button")) {
+    button.onclick = () => {
+      state.resourceMode = button.dataset.resourceMode;
+      state.market.result = null;
+      state.market.featured = null;
+      state.market.collection = null;
+      route();
+    };
+  }
+}
+
+function marketSourcesHtml(providers) {
+  const list = Object.entries(providers);
+  if (!list.length) {
+    return `<div class="empty"><strong>还没有市场来源</strong>点击“添加来源”添加一个 Iconify 兼容源。</div>`;
+  }
+  return `<details class="panel market-sources-panel">
+    <summary>市场来源 <span class="meta">${list.length} 个 · ${esc(list.map(([, provider]) => provider.label ?? "—").join("、"))}</span></summary>
+    <div class="table-wrap" id="marketSources"><table class="data market-source-table">
+      <thead><tr><th>名称</th><th>类型</th><th>baseUrl</th><th>缓存</th><th>推荐</th><th>状态</th><th>操作</th></tr></thead>
+      <tbody>
+        ${list
+          .map(([id, provider]) => {
+            const enabled = provider.enabled !== false;
+            return `<tr>
+              <td><strong>${esc(provider.label ?? id)}</strong><div class="faint mono">${esc(id)}</div></td>
+              <td>${esc(provider.type ?? "—")}</td>
+              <td class="mono">${esc(provider.baseUrl ?? "—")}</td>
+              <td>${esc(provider.cacheHours ?? "—")}h</td>
+              <td>${esc((provider.featured ?? []).join(", ") || "—")}</td>
+              <td><span class="badge ${enabled ? "ok" : "warn"}">${enabled ? "启用" : "停用"}</span></td>
+              <td>
+                <button class="btn" data-provider-toggle="${esc(id)}">${enabled ? "停用" : "启用"}</button>
+                <button class="btn" data-provider-edit="${esc(id)}">编辑</button>
+                <button class="btn danger" data-provider-remove="${esc(id)}">移除</button>
+              </td>
+            </tr>`;
+          })
+          .join("")}
+      </tbody>
+    </table></div>
+  </details>`;
+}
+
+function importedIconPath(entry) {
+  return `icons/${entry.fileName}`;
+}
+
+function isIconImported(entry) {
+  return (state.resources?.entries ?? []).some(
+    (item) => item.path === importedIconPath(entry),
+  );
+}
+
+function marketCardHtml(entry) {
+  const imported = isIconImported(entry);
+  return `
+    <article class="asset-card market-card">
+      <div class="asset-thumb">
+        <button class="market-preview" data-market-preview="${esc(entry.id)}" data-provider-id="${esc(entry.provider)}" title="预览 ${esc(entry.id)}">
+          <img src="${esc(entry.preview)}" alt="" loading="lazy" />
+        </button>
+      </div>
+      <div class="asset-body">
+        <div class="asset-title">${esc(entry.id)}</div>
+        <div class="asset-sub"><span>${esc(entry.license)}</span><span>${esc(entry.collection)}</span></div>
+        <button class="btn ${imported ? "" : "primary"}" data-import-icon="${esc(entry.id)}" data-provider-id="${esc(entry.provider)}" ${imported ? "disabled" : ""}>${imported ? "已导入" : "导入"}</button>
+      </div>
+    </article>`;
+}
+
+function renderMarketResults() {
+  const result = state.market.result;
+  if (!result) return "";
+  if (!result.entries?.length) {
+    return `<div class="empty"><strong>没有匹配的图标</strong>换个关键词试试。</div>`;
+  }
+  return `
+    <div class="row" style="justify-content:space-between">
+      <strong>${result.entries.length} / ${result.total} 条</strong>
+      <span class="faint">点击图标预览；导入后写入 assets/icons/ 并登记清单</span>
+    </div>
+    <div class="grid market-grid">
+      ${result.entries.map(marketCardHtml).join("")}
+    </div>`;
+}
+
+function renderFeaturedHtml() {
+  if (state.market.error) return "";
+  const provider = state.market.providers?.[state.market.providerId];
+  const chips = provider?.suggestions ?? [];
+  const featured = state.market.featured;
+  return `
+    ${
+      chips.length
+        ? `<div class="row" style="flex-wrap:wrap"><span class="faint">试试：</span>${chips.map((query) => `<button class="btn" data-market-query="${esc(query)}">${esc(query)}</button>`).join("")}</div>`
+        : ""
+    }
+    <h2 class="section-title">推荐图标集</h2>
+    ${
+      featured
+        ? `<div class="grid market-collections">${featured.collections
+            .map(
+              (collection) => `
+            <div class="panel market-collection">
+              <div class="panel-head"><h2>${esc(collection.name)}</h2><span class="meta">${esc(collection.license)} · ${collection.total} 个</span></div>
+              <div class="market-samples">
+                ${collection.samples
+                  .map(
+                    (entry) => `<button class="market-sample" data-market-preview="${esc(entry.id)}" data-provider-id="${esc(entry.provider)}" title="预览 ${esc(entry.id)}"><img src="${esc(entry.preview)}" alt="" loading="lazy" /></button>`,
+                  )
+                  .join("")}
+              </div>
+              <div class="row" style="margin-top:10px">
+                <button class="btn" data-market-collection="${esc(collection.prefix)}" data-provider-id="${esc(featured.provider)}">浏览全部 ${collection.total}</button>
+              </div>
+            </div>`,
+            )
+            .join("")}</div>`
+        : `<div class="empty"><strong>推荐加载中</strong>正在读取图标集元数据。</div>`
+    }`;
+}
+
+function renderCollectionHtml() {
+  const collection = state.market.collection;
+  if (!collection) return "";
+  if (collection.loading && !collection.entries.length) {
+    return `<div class="empty"><strong>加载图标集</strong>正在读取 ${esc(collection.prefix)}。</div>`;
+  }
+  return `
+    <div class="panel">
+      <div class="panel-head">
+        <h2>${esc(collection.name || collection.prefix)}</h2>
+        <span class="meta">${esc(collection.license || "—")} · ${collection.total} 个图标</span>
+        <button class="btn" data-market-back>返回市场</button>
+      </div>
+      <div class="toolbar">
+        <input class="field search" id="collectionQuery" placeholder="在 ${esc(collection.name || collection.prefix)} 内搜索" value="${esc(collection.query)}" />
+        <button class="btn" id="collectionSearch">搜索</button>
+        <span class="faint">已显示 ${collection.entries.length}/${collection.total}</span>
+      </div>
+      ${collection.error ? `<div class="row"><span class="badge danger">加载失败</span><span>${esc(collection.error)}</span></div>` : ""}
+      ${collection.entries.length ? `<div class="grid market-grid">${collection.entries.map(marketCardHtml).join("")}</div>` : `<div class="empty"><strong>没有匹配的图标</strong>换个关键词。</div>`}
+      ${
+        collection.entries.length < collection.total
+          ? `<div class="row"><button class="btn" id="collectionMore">加载更多</button></div>`
+          : ""
+      }
+    </div>`;
+}
+
+function marketLimit(name) {
+  const provider = state.market.providers?.[state.market.providerId];
+  return provider?.[name] ?? state.market.defaults?.[name];
+}
+
+async function loadMarketCollection({ append = false } = {}) {
+  const collection = state.market.collection;
+  if (!collection) return;
+  const offset = append ? collection.entries.length : 0;
+  collection.loading = true;
+  collection.error = null;
+  try {
+    const data = await api(
+      `/api/market/collection?provider=${encodeURIComponent(collection.providerId)}&prefix=${encodeURIComponent(collection.prefix)}&q=${encodeURIComponent(collection.query)}&offset=${offset}&limit=${encodeURIComponent(marketLimit("collectionLimit") ?? "")}`,
+    );
+    collection.name = data.name;
+    collection.license = data.license;
+    collection.total = data.total;
+    collection.entries = append
+      ? [...collection.entries, ...data.entries]
+      : data.entries;
+  } catch (error) {
+    collection.error = error.message;
+  }
+  collection.loading = false;
+}
+
+async function openMarketCollection(prefix, providerId) {
+  state.market.collection = {
+    providerId,
+    prefix,
+    name: "",
+    license: "",
+    total: 0,
+    entries: [],
+    query: "",
+    loading: true,
+    error: null,
+  };
+  await loadMarketCollection();
+  route();
+}
+
+function bindMarketResults(providerId) {
+  const container = $("#marketResults");
+  if (!container) return;
+  container.onclick = async (event) => {
+    const queryButton = event.target.closest("[data-market-query]");
+    if (queryButton) {
+      $("#marketQuery").value = queryButton.dataset.marketQuery;
+      const search = $("#marketSearch");
+      if (search) search.click();
+      return;
+    }
+    const collectionButton = event.target.closest("[data-market-collection]");
+    if (collectionButton) {
+      openMarketCollection(
+        collectionButton.dataset.marketCollection,
+        collectionButton.dataset.providerId || providerId,
+      );
+      return;
+    }
+    const previewButton = event.target.closest("[data-market-preview]");
+    if (previewButton) {
+      openMarketPreview(
+        previewButton.dataset.marketPreview,
+        previewButton.dataset.providerId || providerId,
+      );
+      return;
+    }
+    const importButton = event.target.closest("[data-import-icon]");
+    if (!importButton) return;
+    importButton.disabled = true;
+    try {
+      const result = await postJson("/api/market/import", {
+        icon: importButton.dataset.importIcon,
+        provider: importButton.dataset.providerId || providerId,
+      });
+      toast(`已提交导入 → assets/icons/${result.entry?.fileName ?? ""}`);
+      watchToolJob(result.job, "导入图标");
+    } catch (error) {
+      importButton.disabled = false;
+      toast(error.message);
+    }
+  };
+}
+
+async function renderResourceMarket() {
+  const providers = state.market.providers ?? {};
+  const enabled = Object.entries(providers).filter(
+    ([, provider]) => provider.enabled !== false,
+  );
+  if (!enabled.some(([id]) => id === state.market.providerId)) {
+    state.market.providerId = enabled[0]?.[0] ?? null;
+  }
+  const providerId = state.market.providerId;
+  const provider = providerId ? providers[providerId] : null;
+
+  if (state.market.collection) {
+    setActions(`<button class="btn" id="resourceRefresh">刷新</button>`);
+    $("#view").innerHTML = `
+      ${resourceModeSwitch()}
+      <div id="marketResults">${renderCollectionHtml()}</div>
+    `;
+    bindResourceMode();
+    bindMarketResults(providerId);
+    $("#resourceRefresh").onclick = () => route();
+    const back = document.querySelector("[data-market-back]");
+    if (back) {
+      back.onclick = () => {
+        state.market.collection = null;
+        route();
+      };
+    }
+    const runCollectionSearch = async () => {
+      const input = $("#collectionQuery");
+      state.market.collection.query = input ? input.value.trim() : "";
+      await loadMarketCollection();
+      route();
+    };
+    const searchButton = $("#collectionSearch");
+    if (searchButton) searchButton.onclick = runCollectionSearch;
+    const queryInput = $("#collectionQuery");
+    if (queryInput) {
+      queryInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") runCollectionSearch();
+      });
+    }
+    const more = $("#collectionMore");
+    if (more) {
+      more.onclick = async () => {
+        more.disabled = true;
+        await loadMarketCollection({ append: true });
+        route();
+      };
+    }
+    return;
+  }
+
+  if (providerId && !state.market.result && !state.market.featured) {
+    try {
+      state.market.featured = await api(
+        `/api/market/featured?provider=${encodeURIComponent(providerId)}`,
+      );
+    } catch (error) {
+      state.market.error = error.message;
+    }
+  }
+
+  setActions(`
+    <button class="btn" id="resourceRefresh">刷新</button>
+    <button class="btn primary" id="providerAdd">添加来源</button>
+  `);
+
+  $("#view").innerHTML = `
+    ${resourceModeSwitch()}
+    ${marketSourcesHtml(providers)}
+    <div class="panel">
+      <div class="panel-head"><h2>搜索素材</h2><span class="meta">${provider ? esc(provider.label ?? providerId) : "没有启用来源"}</span></div>
+      <div class="toolbar">
+        <select class="field" id="marketProvider">
+          ${enabled.map(([id, item]) => `<option value="${esc(id)}" ${id === providerId ? "selected" : ""}>${esc(item.label ?? id)}</option>`).join("") || `<option value="">无</option>`}
+        </select>
+        <input class="field search" id="marketQuery" placeholder="${esc(provider?.searchPlaceholder ?? "搜索图标")}" value="${esc(state.market.query)}" />
+        <button class="btn primary" id="marketSearch">搜索</button>
+      </div>
+      <p class="faint">来源可添加、编辑、停用或移除；导入仍走 <code>assets add</code>，许可/来源写入清单。</p>
+    </div>
+    ${state.market.error ? `<div class="panel"><div class="row"><span class="badge danger">市场错误</span><span>${esc(state.market.error)}</span></div></div>` : ""}
+    <div id="marketResults">${state.market.query ? renderMarketResults() : renderFeaturedHtml()}</div>
+  `;
+
+  bindResourceMode();
+  $("#resourceRefresh").onclick = () => route();
+  $("#providerAdd").onclick = () => openProviderEditor(null);
+  $("#marketProvider").onchange = (event) => {
+    state.market.providerId = event.target.value;
+    state.market.result = null;
+    state.market.featured = null;
+    state.market.collection = null;
+    state.market.error = null;
+    route();
+  };
+
+  const runSearch = async () => {
+    const query = $("#marketQuery").value.trim();
+    if (!query) {
+      toast("请输入搜索关键词");
+      return;
+    }
+    state.market.query = query;
+    state.market.error = null;
+    try {
+      state.market.result = await api(
+        `/api/market/search?provider=${encodeURIComponent(providerId ?? "")}&q=${encodeURIComponent(query)}&limit=${encodeURIComponent(marketLimit("searchLimit") ?? "")}`,
+      );
+    } catch (error) {
+      state.market.result = null;
+      state.market.error = error.message;
+    }
+    route();
+  };
+  $("#marketSearch").onclick = runSearch;
+  $("#marketQuery").addEventListener("keydown", (event) => {
+    if (event.key === "Enter") runSearch();
+  });
+
+  bindMarketResults(providerId);
+
+  const sources = $("#marketSources");
+  if (sources) {
+    sources.onclick = (event) => {
+      const toggle = event.target.closest("[data-provider-toggle]");
+      if (toggle) {
+        const id = toggle.dataset.providerToggle;
+        const nextEnabled = providers[id]?.enabled === false;
+        submitProvider(
+          { action: "set", id, enabled: nextEnabled },
+          `已${nextEnabled ? "启用" : "停用"} ${id}`,
+        );
+        return;
+      }
+      const edit = event.target.closest("[data-provider-edit]");
+      if (edit) {
+        openProviderEditor(edit.dataset.providerEdit);
+        return;
+      }
+      const remove = event.target.closest("[data-provider-remove]");
+      if (remove) {
+        const id = remove.dataset.providerRemove;
+        if (!window.confirm(`移除市场来源 ${id}？`)) return;
+        submitProvider({ action: "remove", id }, `已移除 ${id}`);
+      }
+    };
+  }
+}
+
+function resetMarketState() {
+  state.market.providers = null;
+  state.market.result = null;
+  state.market.featured = null;
+  state.market.collection = null;
+  state.market.query = "";
+  state.market.error = null;
+}
+
+async function submitProvider(body, message) {
+  try {
+    const job = await postJson("/api/market/providers", body);
+    resetMarketState();
+    toast(message);
+    watchToolJob(job, "市场来源");
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function findMarketEntry(icon, providerId) {
+  const candidates = [
+    ...(state.market.result?.entries ?? []),
+    ...(state.market.featured?.collections ?? []).flatMap(
+      (collection) => collection.samples ?? [],
+    ),
+  ];
+  return (
+    candidates.find(
+      (entry) =>
+        entry.id === icon && (!providerId || entry.provider === providerId),
+    ) ?? null
+  );
+}
+
+function openMarketPreview(icon, providerId) {
+  const entry = findMarketEntry(icon, providerId);
+  if (!entry) {
+    toast("找不到该图标条目，请重新搜索");
+    return;
+  }
+  const existing = isIconImported(entry);
+  const target = `assets/${importedIconPath(entry)}`;
+  openModal(`预览 · ${entry.id}`, `
+    <div class="asset-detail market-preview-detail">
+      <div class="preview-box market-preview-box"><img src="${esc(entry.preview)}" alt="" /></div>
+      <div>
+        <div class="row">
+          <span class="badge accent">${esc(entry.license)}</span>
+          <span class="badge">${esc(entry.collection)}</span>
+          ${existing ? `<span class="badge ok">已导入</span>` : `<span class="badge warn">未导入</span>`}
+        </div>
+        <div class="kv">
+          <div><div class="k">id</div><div class="v">${esc(entry.id)}</div></div>
+          <div><div class="k">来源</div><div class="v">${esc(entry.source)}</div></div>
+          <div><div class="k">作者</div><div class="v">${esc(entry.author ?? "—")}</div></div>
+          <div><div class="k">许可</div><div class="v">${esc(entry.license)}${entry.licenseUrl ? ` · ${esc(entry.licenseUrl)}` : ""}</div></div>
+          <div><div class="k">目标路径</div><div class="v mono">${esc(target)}</div></div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button class="btn primary" id="marketImport">${existing ? "重新导入（覆盖）" : "导入到素材库"}</button>
+          <span class="faint" id="marketImportStatus"></span>
+        </div>
+      </div>
+    </div>
+  `);
+  $("#marketImport").onclick = async () => {
+    const button = $("#marketImport");
+    const status = $("#marketImportStatus");
+    button.disabled = true;
+    status.textContent = "提交中…";
+    try {
+      const result = await postJson("/api/market/import", {
+        icon: entry.id,
+        provider: entry.provider,
+        force: existing,
+      });
+      status.textContent = `已提交导入 → ${target}`;
+      toast(`导入任务已提交 → ${target}`);
+      watchToolJob(result.job, "导入图标");
+    } catch (error) {
+      button.disabled = false;
+      status.textContent = "";
+      toast(error.message);
+    }
+  };
+}
+
+function openProviderEditor(id) {
+  const provider = id ? state.market.providers?.[id] : null;
+  const defaults = state.market.defaults ?? {};
+  openModal(id ? `编辑市场来源 · ${id}` : "添加市场来源", `
+    <div class="form-grid">
+      <div class="form-row"><label for="providerId">id</label><input class="field" id="providerId" value="${esc(id ?? "")}" ${id ? "disabled" : ""} placeholder="iconify-2" /></div>
+      <div class="form-row"><label for="providerType">type</label><input class="field" id="providerType" value="${esc(provider?.type ?? defaults.type ?? "")}" disabled /></div>
+      <div class="form-row"><label for="providerLabel">label</label><input class="field" id="providerLabel" value="${esc(provider?.label ?? "")}" placeholder="显示名称" /></div>
+      <div class="form-row"><label for="providerBaseUrl">baseUrl</label><input class="field" id="providerBaseUrl" value="${esc(provider?.baseUrl ?? defaults.baseUrl ?? "")}" placeholder="http(s)://..." /></div>
+      <div class="form-row"><label for="providerFeatured">featured</label><input class="field" id="providerFeatured" value="${esc((provider?.featured ?? []).join(","))}" placeholder="逗号分隔的图标集前缀" /></div>
+      <div class="form-row"><label for="providerSuggestions">suggestions</label><input class="field" id="providerSuggestions" value="${esc((provider?.suggestions ?? []).join(","))}" placeholder="逗号分隔的快捷搜索词" /></div>
+      <div class="form-row"><label for="providerSearchPlaceholder">searchPlaceholder</label><input class="field" id="providerSearchPlaceholder" value="${esc(provider?.searchPlaceholder ?? defaults.searchPlaceholder ?? "")}" /></div>
+      <div class="form-row"><label for="providerCache">cacheHours</label><input class="field" id="providerCache" type="number" min="1" value="${esc(provider?.cacheHours ?? defaults.cacheHours ?? "")}" /></div>
+    </div>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="saveProvider">保存</button></div>
+  `);
+  $("#saveProvider").onclick = () => {
+    const nextId = id ?? $("#providerId").value.trim();
+    if (!nextId) {
+      toast("请填写市场源 id");
+      return;
+    }
+    const body = {
+      action: id ? "set" : "add",
+      id: nextId,
+      type: $("#providerType").value.trim(),
+      label: $("#providerLabel").value.trim() || nextId,
+      baseUrl: $("#providerBaseUrl").value.trim(),
+      featured: $("#providerFeatured").value.trim(),
+      suggestions: $("#providerSuggestions").value.trim(),
+      searchPlaceholder: $("#providerSearchPlaceholder").value.trim(),
+      cacheHours: Number($("#providerCache").value),
+    };
+    closeModal();
+    submitProvider(body, id ? "市场来源已更新" : "市场来源已添加");
+  };
+}
+
+/* ------------------------------------------------------------------ resources */
+
+const IMAGE_EXT = /\.(png|jpe?g|webp|avif|gif|svg)$/i;
+const AUDIO_EXT = /\.(mp3|wav|ogg|m4a|flac)$/i;
+
+function statCard(label, value, hint = "", tip = "") {
+  return `<div class="stat"><span class="label"${tip ? ` data-hint="${esc(tip)}"` : ""}>${esc(label)}</span><span class="value">${esc(value)}</span>${hint ? `<span class="hint">${esc(hint)}</span>` : ""}</div>`;
+}
+
+function resourceLicenseBadge(license) {
+  return !license || license === "unknown"
+    ? `<span class="badge warn">许可未知</span>`
+    : `<span class="badge ok">${esc(license)}</span>`;
+}
+
+function resourceFilter(list, keys) {
+  const query = state.resourceQuery.trim().toLowerCase();
+  if (!query) return list;
+  return list.filter((item) =>
+    keys.some((key) => String(item[key] ?? "").toLowerCase().includes(query)),
+  );
+}
+
+function resourcePreview(item) {
+  const file = item.path ?? item.file ?? "";
+  if (item.media && IMAGE_EXT.test(file)) {
+    return `<img class="resource-thumb" src="${esc(item.media)}" alt="" loading="lazy" />`;
+  }
+  if (item.media && AUDIO_EXT.test(file)) {
+    return `<button class="btn" data-audio-src="${esc(item.media)}" data-audio-title="${esc(item.id ?? item.path ?? "音频")}">试听</button>`;
+  }
+  return `<span class="faint">—</span>`;
+}
+
+function resourceTableHtml(headers, rows) {
+  if (!rows.length) {
+    return `<div class="empty"><strong>没有匹配项</strong>调整搜索或切换标签。</div>`;
+  }
+  return `<div class="table-wrap"><table class="data">
+    <thead><tr>${headers.map((head) => `<th>${esc(head)}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map((cells) => `<tr>${cells.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
+function resourceIssuesHtml(issues, requirements) {
+  const rows = [];
+  for (const item of issues.missing) {
+    rows.push(`缺失文件 <code>${esc(item.path)}</code>（${esc(item.kind)}）`);
+  }
+  for (const item of issues.unregistered) {
+    rows.push(`未登记 <code>${esc(item.path)}</code>`);
+  }
+  for (const item of issues.changed) {
+    rows.push(`哈希变化 <code>${esc(item.path)}</code>（运行“扫描素材”更新）`);
+  }
+  for (const item of issues.brokenAudio) {
+    rows.push(`音频文件缺失 <code>${esc(item.kind)}/${esc(item.id)}</code>`);
+  }
+  for (const item of issues.licenses.unknown) {
+    rows.push(`许可未知 <code>${esc(item.path)}</code>`);
+  }
+  for (const item of issues.meta.fonts) {
+    rows.push(`字体缺元数据 <code>${esc(item.path)}</code>`);
+  }
+  for (const item of issues.meta.audio) {
+    rows.push(
+      `音频缺 ${esc(item.missing.join("/"))} <code>${esc(item.kind)}/${esc(item.id)}</code>`,
+    );
+  }
+  if (issues.fontsStale) {
+    rows.push("shared/fonts.ts 与清单不一致，运行“生成字体清单”");
+  }
+  if (requirements.declared) {
+    for (const item of requirements.missing) {
+      rows.push(`需求缺口 ${esc(item.type)} <code>${esc(item.label)}</code>`);
+    }
+  }
+  if (!rows.length) {
+    return `<div class="empty"><strong>没有发现资源问题</strong>缺失、未登记、许可与元数据均已就绪。</div>`;
+  }
+  return `<ul class="resource-issues">${rows.map((row) => `<li>${row}</li>`).join("")}</ul>`;
+}
+
+function resourceRemoveButton(path) {
+  return `<button class="btn danger" data-remove-resource="${esc(path)}">移除</button>`;
+}
+
+function renderResourceTable() {
+  const data = state.resources;
+  const container = $("#resourceTable");
+  if (!data || !container) return;
+  const tab = state.resourceTab;
+
+  if (tab === "manifest" || !["fonts", "music", "sfx"].includes(tab)) {
+    const source =
+      tab === "manifest"
+        ? data.entries
+        : data.entries.filter((entry) => entry.kind === tab);
+    const list = resourceFilter(
+      source,
+      ["path", "kind", "license", "source", "family"],
+    );
+    container.innerHTML = resourceTableHtml(
+      ["预览", "路径", "类型", "许可", "来源", "元数据", "大小 / 时间", "操作"],
+      list.map((entry) => [
+        resourcePreview(entry),
+        `<code>${esc(entry.path)}</code>`,
+        labelWithHint("resourceKind", entry.kind),
+        resourceLicenseBadge(entry.license),
+        esc(entry.source ?? "—"),
+        entry.family ? esc(`${entry.family} ${entry.weight ?? ""}`) : "—",
+        `${fmtBytes(entry.size)} · ${esc(fmtDate(entry.mtime))}`,
+        entry.family
+          ? `<button class="btn" data-preview-font="${esc(entry.path)}">预览</button> <button class="btn" data-edit-font="${esc(entry.path)}">编辑</button>`
+          : "",
+        resourceRemoveButton(entry.path),
+      ]),
+    );
+    return;
+  }
+
+  if (tab === "fonts") {
+    const list = resourceFilter(data.fonts, ["path", "family", "weight", "license", "source"]);
+    container.innerHTML = resourceTableHtml(
+      ["路径", "family", "weight", "style", "许可", "来源", "大小 / 时间", "操作"],
+      list.map((entry) => [
+        `<code>${esc(entry.path)}</code>`,
+        esc(entry.family ?? "—"),
+        esc(entry.weight ?? "—"),
+        esc(entry.style ?? "—"),
+        resourceLicenseBadge(entry.license),
+        esc(entry.source ?? "—"),
+        `${fmtBytes(entry.size)} · ${esc(fmtDate(entry.mtime))}`,
+        `<button class="btn" data-preview-font="${esc(entry.path)}">预览</button> <button class="btn" data-edit-font="${esc(entry.path)}">编辑</button> ${resourceRemoveButton(entry.path)}`,
+      ]),
+    );
+    return;
+  }
+
+  if (tab === "music") {
+    const list = resourceFilter(data.music, ["id", "file", "title", "mood", "energy", "license", "source"]);
+    container.innerHTML = resourceTableHtml(
+      ["试听", "id", "文件", "mood", "energy", "bpm", "许可", "大小 / 时间", "操作"],
+      list.map((item) => [
+        resourcePreview(item),
+        `<code>${esc(item.id)}</code>`,
+        `<code>${esc(item.file)}</code>`,
+        esc(item.mood ?? "—"),
+        esc(item.energy ?? "—"),
+        esc(item.bpm ?? "—"),
+        resourceLicenseBadge(item.license),
+        `${fmtBytes(item.size)} · ${esc(fmtDate(item.mtime))}`,
+        `<button class="btn" data-edit-audio="${esc(item.id)}" data-audio-kind="music">编辑</button> ${resourceRemoveButton(item.file)}`,
+      ]),
+    );
+    return;
+  }
+
+  const list = resourceFilter(data.sfx, ["id", "file", "category", "license", "source"]);
+  container.innerHTML = resourceTableHtml(
+    ["试听", "id", "文件", "category", "gain", "许可", "大小 / 时间", "操作"],
+    list.map((item) => [
+      resourcePreview(item),
+      `<code>${esc(item.id)}</code>`,
+      `<code>${esc(item.file)}</code>`,
+      esc(item.category ?? "—"),
+      esc(item.gain ?? "—"),
+      resourceLicenseBadge(item.license),
+      `${fmtBytes(item.size)} · ${esc(fmtDate(item.mtime))}`,
+      `<button class="btn" data-edit-audio="${esc(item.id)}" data-audio-kind="sfx">编辑</button> ${resourceRemoveButton(item.file)}`,
+    ]),
+  );
+}
+
+async function renderResources() {
+  await Promise.all([loadResources(true), loadStatus(true), loadMarketProviders()]);
+  if (state.resourceMode === "market") {
+    await renderResourceMarket();
+    return;
+  }
+  const data = state.resources;
+  const issues = data.issues;
+  const requirements = data.requirements;
+  const missingCount = issues.missing.length + issues.brokenAudio.length;
+  const order = Object.keys(state.labels?.groups?.resourceKind ?? {});
+  const tabDefs = [
+    {
+      key: "manifest",
+      label: labelOf("resourceTab", "manifest"),
+      hint: hintOf("resourceTab", "manifest"),
+      count: data.entries.length,
+    },
+  ];
+  for (const kind of Object.keys(data.counts).sort(
+    (a, b) =>
+      (order.indexOf(a) < 0 ? 99 : order.indexOf(a)) -
+        (order.indexOf(b) < 0 ? 99 : order.indexOf(b)) ||
+      a.localeCompare(b),
+  )) {
+    const key = kind === "font" ? "fonts" : kind;
+    const group = ["font", "music", "sfx"].includes(kind)
+      ? "resourceTab"
+      : "resourceKind";
+    const labelKey = kind === "font" ? "fonts" : kind;
+    tabDefs.push({
+      key,
+      label: labelOf(group, labelKey),
+      hint: hintOf(group, labelKey),
+      count: data.counts[kind],
+    });
+  }
+  if (!tabDefs.some((tab) => tab.key === state.resourceTab)) {
+    state.resourceTab = "manifest";
+  }
+  const tabs = tabDefs.map((tab) => [
+    tab.key,
+    `${tab.label} ${tab.count}`,
+    tab.hint,
+  ]);
+
+  setActions(`
+    <button class="btn" id="resourceRefresh">刷新</button>
+    <button class="btn" id="resourceScanAssets">扫描素材</button>
+    <button class="btn" id="resourceScanAudio">扫描音频</button>
+    <button class="btn" id="resourceFonts">生成字体清单</button>
+  `);
+
+  $("#view").innerHTML = `
+    ${resourceModeSwitch()}
+    <div class="stats">
+      ${statCard("已登记素材", data.manifest.entries, "", "assets.manifest.json 中登记的素材条目数（即“全部素材”）")}
+      ${statCard("缺失", missingCount)}
+      ${statCard("未登记", issues.unregistered.length)}
+      ${statCard("许可未知", issues.licenses.unknown.length)}
+      ${statCard("音频缺元数据", issues.meta.audio.length)}
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <h2>资源问题</h2>
+        <span class="meta">${requirements.declared ? `requirements：${requirements.missing.length} 项缺口` : "未声明 requirements.json"}</span>
+      </div>
+      ${resourceIssuesHtml(issues, requirements)}
+    </div>
+    <div class="toolbar">
+      <div class="tabs" id="resourceTabs">
+        ${tabs.map(([key, label, hint]) => `<button data-resource-tab="${key}"${hint ? ` data-hint="${esc(hint)}"` : ""} class="${state.resourceTab === key ? "active" : ""}">${esc(label)}</button>`).join("")}
+      </div>
+      <span class="spacer"></span>
+      <input class="field search" id="resourceQuery" placeholder="搜索路径 / id / 许可 / 来源" value="${esc(state.resourceQuery)}" />
+      <button class="btn primary" id="resourceImportToggle">导入素材</button>
+    </div>
+    <div class="panel" id="resourceImport" hidden>
+      <div class="panel-head"><h2>导入素材</h2><span class="meta">复用 node tools/assets.mjs add</span></div>
+      <textarea class="field" id="importPaths" rows="4" placeholder="每行一个文件、目录或 URL"></textarea>
+      <div class="form-grid" style="margin-top:10px">
+        <div class="form-row">
+          <label for="importKeep">整理方式</label>
+          <select class="field" id="importKeep">
+            <option value="">按扩展名归类</option>
+            <option value="keep">保留目录结构（--keep）</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="importKind">kind（可选）</label>
+          <select class="field" id="importKind">
+            <option value="">自动</option>
+            <option value="fonts">fonts</option>
+            <option value="icons">icons</option>
+            <option value="music">music</option>
+            <option value="sfx">sfx</option>
+            <option value="brand">brand</option>
+            <option value="map">map</option>
+          </select>
+        </div>
+        <div class="form-row">
+          <label for="importLicense">许可（可选）</label>
+          <input class="field" id="importLicense" placeholder="CC0-1.0 / OFL-1.1" />
+        </div>
+        <div class="form-row">
+          <label for="importSource">来源（可选）</label>
+          <input class="field" id="importSource" placeholder="来源或作者" />
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="doImport">开始导入</button>
+        <span class="faint">导入后在“任务”页查看日志</span>
+      </div>
+    </div>
+    <div id="resourceTable"></div>
+  `;
+
+  renderResourceTable();
+
+  $("#resourceRefresh").onclick = () => route();
+  $("#resourceScanAssets").onclick = () => runResourceScan("assets", "扫描素材库");
+  $("#resourceScanAudio").onclick = () => runResourceScan("audio", "扫描音频");
+  $("#resourceFonts").onclick = () => runResourceScan("fonts", "生成字体清单");
+
+  for (const button of document.querySelectorAll("#resourceTabs button")) {
+    button.onclick = () => {
+      state.resourceTab = button.dataset.resourceTab;
+      for (const item of document.querySelectorAll("#resourceTabs button")) {
+        item.classList.toggle("active", item === button);
+      }
+      renderResourceTable();
+    };
+  }
+
+  $("#resourceQuery").addEventListener("input", (event) => {
+    state.resourceQuery = event.target.value;
+    renderResourceTable();
+  });
+
+  $("#resourceImportToggle").onclick = () => {
+    const panel = $("#resourceImport");
+    panel.hidden = !panel.hidden;
+  };
+
+  $("#doImport").onclick = async () => {
+    const paths = $("#importPaths").value
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!paths.length) {
+      toast("请填写至少一个路径");
+      return;
+    }
+    const keep = $("#importKeep").value === "keep";
+    const kind = $("#importKind").value;
+    const license = $("#importLicense").value.trim();
+    const source = $("#importSource").value.trim();
+    try {
+      const job = await postJson("/api/resources/import", {
+        paths,
+        keep,
+        kind,
+        license,
+        source,
+      });
+      toast(`已提交导入 ${paths.length} 个目标`);
+      watchToolJob(job, "导入素材");
+    } catch (error) {
+      toast(error.message);
+    }
+  };
+
+  $("#resourceTable").onclick = (event) => {
+    const remove = event.target.closest("[data-remove-resource]");
+    if (remove) {
+      openResourceRemove(remove.dataset.removeResource);
+      return;
+    }
+    const audio = event.target.closest("[data-audio-src]");
+    if (audio) {
+      openAudioPlayer(audio.dataset.audioSrc, audio.dataset.audioTitle);
+      return;
+    }
+    const previewFont = event.target.closest("[data-preview-font]");
+    if (previewFont) {
+      openFontPreview(previewFont.dataset.previewFont);
+      return;
+    }
+    const font = event.target.closest("[data-edit-font]");
+    if (font) {
+      openFontEditor(font.dataset.editFont);
+      return;
+    }
+    const audioEdit = event.target.closest("[data-edit-audio]");
+    if (audioEdit) {
+      openAudioEditor(audioEdit.dataset.editAudio, audioEdit.dataset.audioKind);
+    }
+  };
+
+  bindResourceMode();
+}
+
+async function runResourceScan(action, message) {
+  try {
+    const job = await postJson("/api/resources/scan", { action });
+    toast(`已提交：${message}`);
+    watchToolJob(job, message);
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+function watchToolJob(job, message) {
+  if (!job?.id) return;
+  const source = new EventSource(`/api/jobs/${encodeURIComponent(job.id)}/stream`);
+  source.onmessage = async (event) => {
+    let payload;
+    try {
+      payload = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (payload.type === "exit") {
+      source.close();
+      toast(`${message}：${payload.status === "done" ? "完成" : "失败，见任务日志"}`);
+      if (state.page === "resources") await renderResources();
+      else if (state.page === "overview") await renderOverview();
+    }
+  };
+  source.onerror = () => source.close();
+}
+
+function fmtClock(seconds) {
+  if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
+  const total = Math.floor(seconds);
+  const minutes = Math.floor(total / 60);
+  const rest = String(total % 60).padStart(2, "0");
+  return `${minutes}:${rest}`;
+}
+
+function openAudioPlayer(src, title) {
+  openModal(title || "音频预览", `
+    <div class="audio-player">
+      <audio id="audioEl" src="${esc(src)}" preload="metadata"></audio>
+      <button class="btn primary" id="audioPlay" type="button">播放</button>
+      <input class="audio-seek" id="audioSeek" type="range" min="0" max="1000" step="1" value="0" />
+      <span class="audio-time" id="audioTime">0:00 / 0:00</span>
+    </div>
+  `);
+  const audio = $("#audioEl");
+  const play = $("#audioPlay");
+  const seek = $("#audioSeek");
+  const time = $("#audioTime");
+  const update = () => {
+    const duration = Number.isFinite(audio.duration) ? audio.duration : 0;
+    const current = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+    seek.value = duration ? String(Math.round((current / duration) * 1000)) : "0";
+    time.textContent = `${fmtClock(current)} / ${fmtClock(duration)}`;
+  };
+  audio.addEventListener("loadedmetadata", update);
+  audio.addEventListener("timeupdate", update);
+  audio.addEventListener("ended", () => {
+    play.textContent = "播放";
+    update();
+  });
+  seek.addEventListener("input", () => {
+    if (!Number.isFinite(audio.duration) || !audio.duration) return;
+    audio.currentTime = (Number(seek.value) / 1000) * audio.duration;
+    update();
+  });
+  play.onclick = () => {
+    if (audio.paused) {
+      audio
+        .play()
+        .then(() => {
+          play.textContent = "暂停";
+        })
+        .catch((error) => toast(error.message));
+    } else {
+      audio.pause();
+      play.textContent = "播放";
+    }
+  };
+}
+
+let fontPreviewSeq = 0;
+
+async function openFontPreview(path) {
+  const entry = (state.resources?.fonts ?? []).find((item) => item.path === path);
+  if (!entry?.media) {
+    toast("字体文件不可用");
+    return;
+  }
+  const family = `vp-preview-${++fontPreviewSeq}`;
+  openModal(`字体预览 · ${entry.family ?? path}`, `
+    <div class="font-preview">
+      <div class="font-preview-meta">${esc(entry.family ?? "—")} · weight ${esc(entry.weight ?? "—")} · ${esc(entry.style ?? "normal")} · ${fmtBytes(entry.size)}</div>
+      <div class="font-preview-sample" id="fontPreviewSample">春江潮水连海平，海上明月共潮生。<br />The quick brown fox jumps over the lazy dog.<br />ABCDEFGHIJKLMNOPQRSTUVWXYZ 0123456789<br />！@#￥%……&amp;*（）——+</div>
+      <div class="faint" id="fontPreviewStatus">字体加载中…</div>
+    </div>
+  `);
+  try {
+    const face = new FontFace(family, `url(${JSON.stringify(entry.media)})`, {
+      weight: entry.weight ?? "400",
+      style: entry.style ?? "normal",
+    });
+    document.fonts.add(await face.load());
+    const sample = $("#fontPreviewSample");
+    if (sample) sample.style.fontFamily = `"${family}", sans-serif`;
+    const status = $("#fontPreviewStatus");
+    if (status) status.textContent = "预览已加载";
+  } catch (error) {
+    const status = $("#fontPreviewStatus");
+    if (status) status.textContent = `字体加载失败：${error.message}`;
+  }
+}
+
+function openResourceRemove(path) {
+  openModal(`移除资源 · ${path}`, `
+    <p>将从清单与音频索引取消登记，并同步 <code>fonts.ts</code> 与 <code>CREDITS.md</code>。</p>
+    <div class="kv">
+      <div><div class="k">路径</div><div class="v mono">${esc(path)}</div></div>
+      <div><div class="k">说明</div><div class="v">删除文件不可恢复；也可以只取消登记，保留磁盘文件。</div></div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn danger" id="removeFile">移除并删除文件</button>
+      <button class="btn" id="removeOnly">仅取消登记</button>
+      <span class="faint" id="removeStatus"></span>
+    </div>
+  `);
+  const submit = async (keepFile) => {
+    const status = $("#removeStatus");
+    const fileButton = $("#removeFile");
+    const onlyButton = $("#removeOnly");
+    fileButton.disabled = true;
+    onlyButton.disabled = true;
+    status.textContent = "提交中…";
+    try {
+      const job = await postJson("/api/resources/remove", { path, keepFile });
+      closeModal();
+      toast(
+        keepFile
+          ? `已取消登记（文件保留）：${path}`
+          : `已移除并删除文件：${path}`,
+      );
+      watchToolJob(job, "移除资源");
+    } catch (error) {
+      fileButton.disabled = false;
+      onlyButton.disabled = false;
+      status.textContent = "";
+      toast(error.message);
+    }
+  };
+  $("#removeFile").onclick = () => submit(false);
+  $("#removeOnly").onclick = () => submit(true);
+}
+
+function openFontEditor(path) {
+  const entry = (state.resources?.fonts ?? []).find((item) => item.path === path);
+  if (!entry) {
+    toast("找不到字体条目");
+    return;
+  }
+  openModal(`编辑字体 · ${path}`, `
+    <div class="form-grid">
+      <div class="form-row"><label for="fontFamily">family</label><input class="field" id="fontFamily" value="${esc(entry.family ?? "")}" /></div>
+      <div class="form-row"><label for="fontWeight">weight</label><input class="field" id="fontWeight" value="${esc(entry.weight ?? "400")}" /></div>
+      <div class="form-row"><label for="fontStyle">style</label><input class="field" id="fontStyle" value="${esc(entry.style ?? "")}" placeholder="normal / italic" /></div>
+    </div>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="saveFont">保存</button></div>
+  `);
+  $("#saveFont").onclick = async () => {
+    try {
+      const job = await postJson("/api/resources/meta", {
+        type: "font",
+        path,
+        family: $("#fontFamily").value.trim(),
+        weight: $("#fontWeight").value.trim(),
+        style: $("#fontStyle").value.trim(),
+      });
+      closeModal();
+      toast("字体元数据已提交");
+      watchToolJob(job, "字体元数据");
+    } catch (error) {
+      toast(error.message);
+    }
+  };
+}
+
+function openAudioEditor(id, kind) {
+  const item =
+    kind === "music"
+      ? (state.resources?.music ?? []).find((entry) => entry.id === id)
+      : (state.resources?.sfx ?? []).find((entry) => entry.id === id);
+  if (!item) {
+    toast("找不到音频条目");
+    return;
+  }
+  const fields =
+    kind === "music"
+      ? `
+        <div class="form-row"><label for="audioMood">mood</label><input class="field" id="audioMood" value="${esc(item.mood ?? "")}" /></div>
+        <div class="form-row"><label for="audioEnergy">energy</label><input class="field" id="audioEnergy" value="${esc(item.energy ?? "")}" /></div>
+        <div class="form-row"><label for="audioBpm">bpm</label><input class="field" id="audioBpm" value="${esc(item.bpm ?? "")}" /></div>
+      `
+      : `
+        <div class="form-row"><label for="audioCategory">category</label><input class="field" id="audioCategory" value="${esc(item.category ?? "")}" /></div>
+        <div class="form-row"><label for="audioGain">gain</label><input class="field" id="audioGain" value="${esc(item.gain ?? "")}" /></div>
+      `;
+  openModal(`编辑音频 · ${id}`, `
+    <div class="form-grid">${fields}</div>
+    <div class="row" style="margin-top:12px"><button class="btn primary" id="saveAudio">保存</button></div>
+  `);
+  $("#saveAudio").onclick = async () => {
+    const body = { type: "audio", id, audioKind: kind };
+    if (kind === "music") {
+      body.mood = $("#audioMood").value.trim();
+      body.energy = $("#audioEnergy").value.trim();
+      body.bpm = $("#audioBpm").value.trim();
+    } else {
+      body.category = $("#audioCategory").value.trim();
+      body.gain = $("#audioGain").value.trim();
+    }
+    try {
+      const job = await postJson("/api/resources/meta", body);
+      closeModal();
+      toast("音频元数据已提交");
+      watchToolJob(job, "音频元数据");
+    } catch (error) {
+      toast(error.message);
+    }
+  };
+}
+
+/* ------------------------------------------------------------------ modules */
+
+const MODULE_CHECKS = {
+  scan: ["scan", ["--check"]],
+  quality: ["quality", ["--report-only"]],
+  sync: ["sync", ["--check"]],
+};
+
+function moduleCardHtml(module) {
+  const check = MODULE_CHECKS[module.id];
+  const last = module.last;
+  return `
+    <article class="panel module-card">
+      <div class="panel-head">
+        <h2>${esc(module.label)}</h2>
+        <span class="meta">${last ? `${jobStatusBadge(last.status)} ${esc(fmtDate(last.createdAt))}` : "未运行"}</span>
+      </div>
+      <p class="module-summary">${esc(module.summary)}</p>
+      <p class="faint">${esc(module.detail)}</p>
+      <code class="module-command">${esc(module.command)}</code>
+      <div class="row" style="margin-top:auto">
+        ${check ? `<button class="btn" data-module-check="${esc(module.id)}">运行检查</button>` : ""}
+        <a class="btn" href="#/tasks">任务页</a>
+      </div>
+    </article>`;
+}
+
+async function runModuleCheck(id) {
+  const entry = MODULE_CHECKS[id];
+  if (!entry) return;
+  try {
+    const [stage, args] = entry;
+    const job = await postJson("/api/jobs", { stage, args });
+    toast(`已提交检查：${stageLabel(stage)}`);
+    watchToolJob(job, `检查 ${stageLabel(stage)}`);
+  } catch (error) {
+    toast(error.message);
+  }
 }
 
 /* ------------------------------------------------------------------ assets */
@@ -557,9 +1807,10 @@ function assetCardHtml(asset) {
       <div class="asset-body">
         <div class="asset-title">${esc(asset.creativeId ? `${asset.creativeId}/${asset.variantId}` : (asset.preset ?? "—"))}</div>
         <div class="asset-sub">
-          <span>${esc(categoryLabel(asset.category))} · ${esc(layerLabel(asset.layer))}</span>
+          <span>${labelWithHint("category", asset.category)} · ${labelWithHint("layer", asset.layer)}</span>
           <span>${asset.seriesIndex !== null && asset.seriesIndex !== undefined ? `#${asset.seriesIndex}` : esc(asset.scope ?? "shared")}</span>
         </div>
+        <div class="asset-meta">${fmtBytes(asset.size)} · ${esc(fmtDate(asset.mtime))}</div>
       </div>
     </article>`;
 }
@@ -611,6 +1862,7 @@ function footageCardHtml(asset) {
           <span>${asset.width}×${asset.height} · ${asset.scenes} 场景</span>
           <span>${esc(asset.status || "")}</span>
         </div>
+        <div class="asset-meta">${fmtBytes(asset.size)} · ${esc(fmtDate(asset.mtime))}</div>
       </div>
     </article>`;
 }
@@ -665,7 +1917,7 @@ async function renderAssets() {
             </select>
             <select class="field" id="filterLayer">
               <option value="">全部层</option>
-              ${Object.entries(LAYER_LABELS).map(([value, label]) => `<option value="${value}" ${filters.layer === value ? "selected" : ""}>${label}</option>`).join("")}
+              ${Object.entries(state.labels?.groups?.layer ?? {}).map(([value, entry]) => `<option value="${value}" ${filters.layer === value ? "selected" : ""}>${esc(entry.label)}</option>`).join("")}
             </select>
             <select class="field" id="filterScope">
               <option value="">全部范围</option>
@@ -732,13 +1984,6 @@ async function renderAssets() {
 /* ------------------------------------------------------------------ creative */
 
 const BEAT_ROLES = ["hook", "build", "proof", "turn", "close"];
-const BEAT_LABELS = {
-  hook: "开场",
-  build: "铺垫",
-  proof: "证据",
-  turn: "转折",
-  close: "收束",
-};
 
 function creativeCurrent() {
   const data = state.creative.data;
@@ -1174,7 +2419,7 @@ async function renderCreative() {
           <div class="row">
             <span class="badge accent">${esc(project.engineMeta?.label ?? project.engine)}</span>
             <span class="badge">${esc(project.engineMeta?.preset ?? "—")}</span>
-            <span class="badge">${esc(layerLabel(project.engineMeta?.layer))}</span>
+            <span class="badge">${labelWithHint("layer", project.engineMeta?.layer)}</span>
             ${project.engineMeta?.alpha ? `<span class="badge">透明</span>` : ""}
             ${builtBadge}
             ${state.creative.dirty ? `<span class="badge warn">未保存</span>` : ""}
@@ -1212,7 +2457,7 @@ async function renderCreative() {
               <div class="row">
                 ${BEAT_ROLES.map(
                   (role) =>
-                    `<label class="creative-role"><input type="checkbox" data-role="${role}" ${effectiveRoles.includes(role) ? "checked" : ""} />${BEAT_LABELS[role]}</label>`,
+                    `<label class="creative-role"><input type="checkbox" data-role="${role}" ${effectiveRoles.includes(role) ? "checked" : ""} />${esc(labelOf("beat", role))}</label>`,
                 ).join("")}
               </div>
             </div>
@@ -1394,12 +2639,12 @@ function openAssetModal(id) {
     ? `<div class="kv">
         <div><div class="k">质量</div><div class="v">${quality.ok ? "通过" : "未通过"}</div></div>
         <div><div class="k">标记</div><div class="v">${flags.length ? esc(flags.map(flagLabel).join("、")) : "—"}</div></div>
-        <div><div class="k">透明覆盖</div><div class="v">${fmtPercent(quality.alphaCoverage)}</div></div>
-        <div><div class="k">运动能量</div><div class="v">${fmtNum(quality.motionEnergy, 5)}</div></div>
-        <div><div class="k">亮度 / 对比</div><div class="v">${fmtNum(quality.brightness)} / ${fmtNum(quality.contrast)}</div></div>
-        <div><div class="k">首尾 Hamming</div><div class="v">${fmtNum(quality.firstLastHamming)}</div></div>
-        <div><div class="k">末帧运动</div><div class="v">${fmtNum(quality.endMotion, 5)}</div></div>
-        <div><div class="k">末帧透明</div><div class="v">${fmtPercent(quality.alphaEnd)}</div></div>
+        <div><div class="k"${qhint("alphaCoverage")}>透明覆盖${qmark("alphaCoverage")}</div><div class="v">${fmtPercent(quality.alphaCoverage)}</div></div>
+        <div><div class="k"${qhint("motionEnergy")}>运动能量${qmark("motionEnergy")}</div><div class="v">${fmtNum(quality.motionEnergy, 5)}</div></div>
+        <div><div class="k"${qhint("brightness")}>亮度 / 对比${qmark("brightness")}</div><div class="v">${fmtNum(quality.brightness)} / ${fmtNum(quality.contrast)}</div></div>
+        <div><div class="k"${qhint("firstLastHamming")}>首尾 Hamming${qmark("firstLastHamming")}</div><div class="v">${fmtNum(quality.firstLastHamming)}</div></div>
+        <div><div class="k"${qhint("endMotion")}>末帧运动${qmark("endMotion")}</div><div class="v">${fmtNum(quality.endMotion, 5)}</div></div>
+        <div><div class="k"${qhint("alphaEnd")}>末帧透明${qmark("alphaEnd")}</div><div class="v">${fmtPercent(quality.alphaEnd)}</div></div>
       </div>`
     : `<p class="muted">还没有质量数据，运行 <span class="mono">quality</span> 后生成。</p>`;
 
@@ -1444,8 +2689,8 @@ function openAssetModal(id) {
       <div>
         <div class="row">
           ${statusBadge(status)}
-          <span class="badge accent">${esc(categoryLabel(asset.category))}</span>
-          <span class="badge">${esc(layerLabel(asset.layer))}</span>
+          <span class="badge accent">${labelWithHint("category", asset.category)}</span>
+          <span class="badge">${labelWithHint("layer", asset.layer)}</span>
           <span class="badge">${esc(asset.scope ?? "shared")}</span>
           ${asset.alpha ? `<span class="badge">透明</span>` : ""}
           ${asset.loop ? `<span class="badge">循环</span>` : ""}
@@ -1454,6 +2699,8 @@ function openAssetModal(id) {
           <div><div class="k">来源</div><div class="v">${esc(asset.creativeId ? `${asset.creativeId}/${asset.variantId}` : (asset.preset ?? "—"))}</div></div>
           <div><div class="k">engine</div><div class="v">${esc(asset.engine ?? "—")}</div></div>
           <div><div class="k">时长</div><div class="v">${fmtDuration(asset.duration)}</div></div>
+          <div><div class="k">大小</div><div class="v">${fmtBytes(asset.size)}</div></div>
+          <div><div class="k">修改时间</div><div class="v">${esc(fmtDate(asset.mtime))}</div></div>
           <div><div class="k">系列</div><div class="v">${esc(asset.series ?? "—")}${asset.seriesIndex !== null && asset.seriesIndex !== undefined ? ` #${asset.seriesIndex}` : ""}</div></div>
           ${asset.creativeId ? `<div><div class="k">风格</div><div class="v">${esc(asset.style ?? "—")}</div></div>` : ""}
           ${asset.creativeId ? `<div><div class="k">创意版本</div><div class="v">v${esc(asset.creativeVersion ?? "?")} · 变体 v${esc(asset.variantVersion ?? "?")}</div></div>` : ""}
@@ -1497,7 +2744,7 @@ function openFootageModal(id) {
     `<div class="asset-detail">
       <div>
         <div class="preview-box">
-          ${thumbs[0] ? `<img src="${esc(thumbs[0])}" alt="" data-main-thumb />` : "无缩略图"}
+          <video src="/media/footage/${encodeURIComponent(asset.id)}" poster="${esc(thumbs[0] ?? "")}" controls preload="metadata" playsinline></video>
         </div>
         <div class="still-strip">
           ${thumbs.map((src) => `<img src="${esc(src)}" alt="" data-thumb="${esc(src)}" loading="lazy" />`).join("")}
@@ -1511,6 +2758,8 @@ function openFootageModal(id) {
         </div>
         <div class="kv">
           <div><div class="k">时长</div><div class="v">${fmtDuration(asset.duration)}</div></div>
+          <div><div class="k">大小</div><div class="v">${fmtBytes(asset.size)}</div></div>
+          <div><div class="k">修改时间</div><div class="v">${esc(fmtDate(asset.mtime))}</div></div>
           <div><div class="k">分辨率</div><div class="v">${asset.width}×${asset.height}</div></div>
           <div><div class="k">文件</div><div class="v">${esc(asset.path ?? "—")}</div></div>
         </div>
@@ -1520,25 +2769,18 @@ function openFootageModal(id) {
 
   for (const thumb of document.querySelectorAll("#modalBody [data-thumb]")) {
     thumb.onclick = () => {
-      const image = $("#modalBody [data-main-thumb]");
-      if (image) image.src = thumb.dataset.thumb;
+      const video = $("#modalBody video");
+      if (video) video.poster = thumb.dataset.thumb;
     };
   }
 }
-
-const ACTION_LABELS = {
-  approve: "批准",
-  reject: "退役",
-  share: "提升为 shared",
-  "clean-work": "清理 work（dry-run）",
-};
 
 async function runAssetAction(action, id) {
   releaseVideos();
   closeModal();
   try {
     const job = await postJson("/api/action", { action, id });
-    toast(`已提交：${ACTION_LABELS[action] ?? action} ${id}`);
+    toast(`已提交：${labelOf("action", action)} ${id}`);
     watchJobOnce(job.id, async () => {
       await Promise.all([loadCatalog(true), loadStatus(true)]);
       if (state.page === "assets") await renderAssets();
@@ -1618,17 +2860,20 @@ function paintTaskForm() {
     ? definition.fields
         .map((field) => {
           const id = `field-${field.name}`;
+          const hint = field.hint ? esc(field.hint) : "";
+          const hintAttr = hint ? ` data-hint="${hint}"` : "";
+          const hintDot = hint ? `<span class="hint-dot" data-hint="${hint}">?</span>` : "";
           if (field.type === "checkbox") {
             return `<div class="form-row">
-              <label for="${id}">${esc(field.label)}</label>
-              <input type="checkbox" id="${id}" data-field="${esc(field.name)}" data-type="checkbox" ${values[field.name] ? "checked" : ""} />
+              <label for="${id}"${hintAttr}>${esc(field.label)}${hintDot}</label>
+              <input type="checkbox" id="${id}" data-field="${esc(field.name)}" data-type="checkbox"${hintAttr} ${values[field.name] ? "checked" : ""} />
             </div>`;
           }
           const type = field.type === "number" ? "number" : "text";
           const placeholder = defaults[field.name] ?? field.placeholder ?? "";
           return `<div class="form-row">
-            <label for="${id}">${esc(field.label)}</label>
-            <input class="field" type="${type}" id="${id}" data-field="${esc(field.name)}" data-type="${type}"
+            <label for="${id}"${hintAttr}>${esc(field.label)}${hintDot}</label>
+            <input class="field" type="${type}" id="${id}" data-field="${esc(field.name)}" data-type="${type}"${hintAttr}
               placeholder="${esc(placeholder)}" value="${esc(values[field.name] ?? "")}" />
           </div>`;
         })
@@ -1647,7 +2892,10 @@ function paintTaskForm() {
   }
 
   const hint = $("#taskHint");
-  if (hint) hint.textContent = stageHint(stage);
+  if (hint) {
+    hint.textContent = stageHint(stage);
+    hint.title = stageHint(stage);
+  }
   updatePreview();
 }
 
@@ -2009,7 +3257,7 @@ async function renderQuality() {
     .map(
       ([layer, data]) => `
       <tr>
-        <td>${esc(layerLabel(layer))}</td>
+        <td>${labelWithHint("layer", layer)}</td>
         <td class="num">${data.assets ?? "—"}</td>
         <td class="num">${data.clusters ?? "—"}</td>
         <td class="num">${fmtNum(data.diversity, 3)}</td>
@@ -2048,7 +3296,7 @@ async function renderQuality() {
 
   const matrices = Object.entries(report.matrices ?? {})
     .map(([key, matrix]) => {
-      const head = `<tr><th>${esc(MATRIX_LABELS[key] ?? key)}</th>${matrix.cols.map((col) => `<th>${esc(col)}</th>`).join("")}</tr>`;
+      const head = `<tr><th>${esc(labelOf("matrix", key))}</th>${matrix.cols.map((col) => `<th>${esc(col)}</th>`).join("")}</tr>`;
       const rows = matrix.rows
         .map(
           (row) => `<tr><td>${esc(row)}</td>${matrix.cols
@@ -2062,7 +3310,7 @@ async function renderQuality() {
       return `
         <div class="panel">
           <div class="panel-head">
-            <h2>${esc(MATRIX_LABELS[key] ?? key)}</h2>
+            <h2>${esc(labelOf("matrix", key))}</h2>
             <span class="meta">覆盖 ${matrix.filled}/${matrix.total} · ${fmtPercent(matrix.coverage)}</span>
           </div>
           <div class="table-wrap"><table class="data matrix">${head}${rows}</table></div>
@@ -2074,7 +3322,7 @@ async function renderQuality() {
     (item) => `
       <tr>
         <td class="mono">${esc(item.id)}</td>
-        <td>${esc(layerLabel(item.layer))}</td>
+        <td>${labelWithHint("layer", item.layer)}</td>
         <td>${esc(categoryLabel(item.category))}</td>
         <td>${(item.flags ?? []).map((flag) => `<span class="badge warn">${esc(flagLabel(flag))}</span>`).join(" ") || "—"}</td>
         <td class="num">${fmtPercent(item.alphaCoverage)}</td>
@@ -2088,7 +3336,7 @@ async function renderQuality() {
       <div class="cluster">
         <div class="cluster-head">
           <strong>${esc(cluster.id)}</strong>
-          <span>${esc(layerLabel(cluster.layer))} · ${cluster.size} 条</span>
+          <span>${labelWithHint("layer", cluster.layer)} · ${cluster.size} 条</span>
         </div>
         <div class="row">${(cluster.members ?? []).map((member) => `<span class="chip">${esc(member)}</span>`).join("")}</div>
       </div>`,
@@ -2101,7 +3349,7 @@ async function renderQuality() {
       <tr>
         <td class="mono">${esc(pair.a)}</td>
         <td class="mono">${esc(pair.b)}</td>
-        <td>${esc(layerLabel(pair.layer))}</td>
+        <td>${labelWithHint("layer", pair.layer)}</td>
         <td class="num">${fmtNum(pair.score, 3)}</td>
         <td class="num">${fmtNum(pair.hammingMin)} / ${fmtNum(pair.hammingMean)}</td>
         <td class="num">${fmtNum(pair.colorDistance, 1)}</td>
@@ -2116,17 +3364,17 @@ async function renderQuality() {
         : ""
     }
     <div class="stats">
-      <div class="stat"><div class="label">已分析</div><div class="value">${summary.analyzed ?? "—"}</div><div class="hint">共 ${summary.assets ?? "—"} 条 · 缺失 ${summary.missing ?? 0}</div></div>
-      <div class="stat"><div class="label">感知簇</div><div class="value">${summary.clusters ?? "—"}</div><div class="hint">多样性 ${fmtNum(summary.diversity, 3)}</div></div>
-      <div class="stat"><div class="label">近似重复</div><div class="value">${summary.nearDuplicates ?? "—"}</div><div class="hint">展示 ${(report.nearDuplicates ?? []).length} 对</div></div>
-      <div class="stat"><div class="label">警告 / 失败</div><div class="value">${summary.warnings ?? 0} / ${summary.flagged ?? 0}</div><div class="hint">报告 ${esc(fmtDate(report.generatedAt))}</div></div>
+      <div class="stat"><div class="label"${qhint("analyzed")}>已分析${qmark("analyzed")}</div><div class="value">${summary.analyzed ?? "—"}</div><div class="hint">共 ${summary.assets ?? "—"} 条 · 缺失 ${summary.missing ?? 0}</div></div>
+      <div class="stat"><div class="label"${qhint("clusters")}>感知簇${qmark("clusters")}</div><div class="value">${summary.clusters ?? "—"}</div><div class="hint">多样性 ${fmtNum(summary.diversity, 3)}</div></div>
+      <div class="stat"><div class="label"${qhint("nearDuplicates")}>近似重复${qmark("nearDuplicates")}</div><div class="value">${summary.nearDuplicates ?? "—"}</div><div class="hint">展示 ${(report.nearDuplicates ?? []).length} 对</div></div>
+      <div class="stat"><div class="label"${qhint("warnings")}>警告 / 失败${qmark("warnings")}</div><div class="value">${summary.warnings ?? 0} / ${summary.flagged ?? 0}</div><div class="hint">报告 ${esc(fmtDate(report.generatedAt))}</div></div>
     </div>
 
     <div class="panel">
       <div class="panel-head"><h2>分层概览</h2><span class="meta">报告版本 ${esc(report.version ?? "—")}</span></div>
       <div class="table-wrap">
         <table class="data">
-          <tr><th>层</th><th>素材</th><th>簇</th><th>多样性</th><th>运动能量</th><th>透明覆盖</th><th>警告</th></tr>
+          <tr><th>层</th><th>素材</th><th>簇</th><th${qhint("diversity")}>多样性${qmark("diversity")}</th><th${qhint("motionEnergy")}>运动能量${qmark("motionEnergy")}</th><th${qhint("alphaCoverage")}>透明覆盖${qmark("alphaCoverage")}</th><th>警告</th></tr>
           ${layerRows}
         </table>
       </div>
@@ -2137,7 +3385,7 @@ async function renderQuality() {
       ${
         flagged.length
           ? `<div class="table-wrap"><table class="data">
-              <tr><th>素材</th><th>层</th><th>类型</th><th>标记</th><th>透明覆盖</th><th>运动能量</th></tr>
+              <tr><th>素材</th><th>层</th><th>类型</th><th>标记</th><th${qhint("alphaCoverage")}>透明覆盖${qmark("alphaCoverage")}</th><th${qhint("motionEnergy")}>运动能量${qmark("motionEnergy")}</th></tr>
               ${flagged.join("")}
             </table></div>`
           : `<p class="muted">没有质量标记。</p>`
@@ -2149,7 +3397,7 @@ async function renderQuality() {
       ${
         duplicates
           ? `<div class="table-wrap"><table class="data">
-              <tr><th>A</th><th>B</th><th>层</th><th>score</th><th>Hamming min/mean</th><th>色差</th></tr>
+              <tr><th>A</th><th>B</th><th>层</th><th${qhint("score")}>score${qmark("score")}</th><th${qhint("hamming")}>Hamming min/mean${qmark("hamming")}</th><th${qhint("colorDistance")}>色差${qmark("colorDistance")}</th></tr>
               ${duplicates}
             </table></div>`
           : `<p class="muted">没有近似重复。</p>`
@@ -2197,6 +3445,54 @@ function startStatusLoop() {
   }, 6000);
 }
 
+function setupHints() {
+  const tip = document.createElement("div");
+  tip.id = "hintTip";
+  tip.hidden = true;
+  document.body.appendChild(tip);
+  let current = null;
+  const hide = () => {
+    current = null;
+    tip.hidden = true;
+  };
+  const show = (element) => {
+    const text = element.dataset.hint;
+    if (!text) return;
+    current = element;
+    tip.textContent = text;
+    tip.hidden = false;
+    const rect = element.getBoundingClientRect();
+    const width = tip.offsetWidth;
+    const height = tip.offsetHeight;
+    const left = Math.min(
+      window.innerWidth - width - 8,
+      Math.max(8, rect.left),
+    );
+    const below = rect.bottom + 8;
+    const top =
+      below + height > window.innerHeight - 8
+        ? rect.top - height - 8
+        : below;
+    tip.style.left = `${left}px`;
+    tip.style.top = `${Math.max(8, top)}px`;
+  };
+  document.addEventListener("mouseover", (event) => {
+    const element = event.target.closest?.("[data-hint]");
+    if (element) show(element);
+    else if (current) hide();
+  });
+  document.addEventListener("mouseout", (event) => {
+    const element = event.target.closest?.("[data-hint]");
+    if (element && !element.contains(event.relatedTarget)) hide();
+  });
+  document.addEventListener("focusin", (event) => {
+    const element = event.target.closest?.("[data-hint]");
+    if (element) show(element);
+  });
+  document.addEventListener("focusout", hide);
+  window.addEventListener("scroll", hide, true);
+}
+
 async function boot() {
   window.addEventListener("hashchange", route);
   window.addEventListener("beforeunload", releaseVideos);
@@ -2209,9 +3505,16 @@ async function boot() {
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") closeModal();
   });
+  setupHints();
+  initPreviewMode();
 
   try {
-    await Promise.all([loadConfig(), loadParameters(), loadStatus(true)]);
+    await Promise.all([
+      loadConfig(),
+      loadParameters(),
+      loadStatus(true),
+      loadLabels(),
+    ]);
   } catch (error) {
     toast(error.message);
   }

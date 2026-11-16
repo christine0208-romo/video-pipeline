@@ -20,7 +20,20 @@ import { createServer } from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadConfig } from "../modules/lib/config.mjs";
-import { diffAssetFiles } from "../modules/lib/assets.mjs";
+import { diffAssetFiles, findAssetFile } from "../modules/lib/assets.mjs";
+import {
+  checkResources,
+  inventory,
+  requirementsStatus,
+} from "../modules/lib/resources.mjs";
+import {
+  collectionIconify,
+  featuredIconify,
+  marketDefaults,
+  marketProviders,
+  resolveIconifyIcon,
+  searchIconify,
+} from "../modules/lib/market.mjs";
 import { registryStatus } from "../modules/creative/registry.mjs";
 import {
   projectEngine,
@@ -58,6 +71,8 @@ const ALLOWED_STAGES = new Set([
   "check",
   "sync",
 ]);
+
+const ALLOWED_TOOLS = new Set(["tools/assets.mjs", "tools/market.mjs", "run.mjs"]);
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -109,6 +124,23 @@ function mediaUrl(file) {
     return `/media/${prefix}/${rel}`;
   }
   return null;
+}
+
+function assetMediaUrl(relative) {
+  if (!relative) return null;
+  const clean = String(relative).replace(/\\/g, "/").replace(/^\.\//, "");
+  if (!findAssetFile(cfg.assetRoots, clean)) return null;
+  return `/media/assets/${clean.split("/").map(encodeURIComponent).join("/")}`;
+}
+
+function fileStat(file) {
+  if (!file) return { size: null, mtime: null };
+  try {
+    const stat = statSync(file);
+    return { size: stat.size, mtime: stat.mtime.toISOString() };
+  } catch {
+    return { size: null, mtime: null };
+  }
 }
 
 function json(res, status, data) {
@@ -195,7 +227,7 @@ function loadJobs() {
 }
 
 function publicJob(job) {
-  const { child, listeners, logStream, ...rest } = job;
+  const { child, listeners, logStream, command, ...rest } = job;
   return rest;
 }
 
@@ -241,11 +273,16 @@ function startJob(job) {
   job.startedAt = new Date().toISOString();
   job.logStream = createWriteStream(job.logFile, { flags: "a" });
   job.listeners = job.listeners ?? new Set();
-  appendLog(job, `\n[job] node run.mjs ${job.stage} ${job.args.join(" ")}\n\n`);
+  const command = job.command ?? {
+    script: path.join(ROOT, "run.mjs"),
+    args: [job.stage, ...job.args],
+  };
+  const display = path.relative(ROOT, command.script).split(path.sep).join("/");
+  appendLog(job, `\n[job] node ${display} ${command.args.join(" ")}\n\n`);
 
   const child = spawn(
     process.execPath,
-    [path.join(ROOT, "run.mjs"), job.stage, ...job.args],
+    [command.script, ...command.args],
     {
       cwd: ROOT,
       env: { ...process.env, FORCE_COLOR: "0" },
@@ -279,6 +316,41 @@ function enqueueJob(stage, args) {
     id,
     stage,
     args,
+    status: "queued",
+    createdAt: new Date().toISOString(),
+    startedAt: null,
+    endedAt: null,
+    exitCode: null,
+    logFile: path.join(LOG_DIR, `${id}.log`),
+  };
+  jobs.set(id, job);
+  writeFileSync(job.logFile, "");
+  if (active) {
+    queue.push(job);
+  } else {
+    startJob(job);
+  }
+  persistJobs();
+  return job;
+}
+
+function enqueueTool(label, scriptRel, args) {
+  if (!ALLOWED_TOOLS.has(scriptRel)) {
+    throw new Error(`不支持的工具：${scriptRel}`);
+  }
+  if (!Array.isArray(args) || args.some((arg) => typeof arg !== "string")) {
+    throw new Error("args 必须是字符串数组");
+  }
+  if (args.join(" ").length > 4000) throw new Error("参数过长");
+  const script = path.join(ROOT, scriptRel);
+  if (!existsSync(script)) throw new Error(`缺少工具脚本：${scriptRel}`);
+  counter += 1;
+  const id = `job-${Date.now().toString(36)}-${counter}`;
+  const job = {
+    id,
+    stage: label,
+    args,
+    command: { script, args },
     status: "queued",
     createdAt: new Date().toISOString(),
     startedAt: null,
@@ -365,35 +437,40 @@ function streamJob(req, res, job) {
 
 function listCatalog() {
   const catalog = readJson(path.join(DATA, "catalog.json"), { assets: [] });
-  return (catalog.assets ?? []).map((asset) => ({
-    id: asset.id,
-    preset: asset.preset,
-    engine: asset.engine ?? null,
-    layer: asset.layer ?? "scene",
-    category: asset.category ?? asset.quality?.category ?? null,
-    series: asset.series ?? null,
-    seriesIndex: asset.seriesIndex ?? null,
-    scope: asset.scope ?? "shared",
-    workId: asset.workId ?? null,
-    status: asset.status ?? "approved",
-    creativeId: asset.creativeId ?? null,
-    variantId: asset.variantId ?? null,
-    creativeVersion: asset.creativeVersion ?? null,
-    variantVersion: asset.variantVersion ?? null,
-    style: asset.style ?? null,
-    paramsHash: asset.paramsHash ?? null,
-    itemId: asset.itemId ?? null,
-    duration: asset.duration,
-    alpha: Boolean(asset.alpha),
-    loop: Boolean(asset.loop),
-    tags: asset.tags ?? {},
-    variation: asset.variation ?? null,
-    quality: asset.quality ?? null,
-    thumb: mediaUrl(asset.stills?.[0]) ?? mediaUrl(asset.fileMp4),
-    mp4: mediaUrl(asset.fileMp4),
-    webm: mediaUrl(asset.fileWebm),
-    stills: (asset.stills ?? []).map(mediaUrl).filter(Boolean),
-  }));
+  return (catalog.assets ?? []).map((asset) => {
+    const info = fileStat(asset.fileMp4);
+    return {
+      id: asset.id,
+      preset: asset.preset,
+      engine: asset.engine ?? null,
+      layer: asset.layer ?? "scene",
+      category: asset.category ?? asset.quality?.category ?? null,
+      series: asset.series ?? null,
+      seriesIndex: asset.seriesIndex ?? null,
+      scope: asset.scope ?? "shared",
+      workId: asset.workId ?? null,
+      status: asset.status ?? "approved",
+      creativeId: asset.creativeId ?? null,
+      variantId: asset.variantId ?? null,
+      creativeVersion: asset.creativeVersion ?? null,
+      variantVersion: asset.variantVersion ?? null,
+      style: asset.style ?? null,
+      paramsHash: asset.paramsHash ?? null,
+      itemId: asset.itemId ?? null,
+      duration: asset.duration,
+      alpha: Boolean(asset.alpha),
+      loop: Boolean(asset.loop),
+      tags: asset.tags ?? {},
+      variation: asset.variation ?? null,
+      quality: asset.quality ?? null,
+      size: info.size,
+      mtime: info.mtime,
+      thumb: mediaUrl(asset.stills?.[0]) ?? mediaUrl(asset.fileMp4),
+      mp4: mediaUrl(asset.fileMp4),
+      webm: mediaUrl(asset.fileWebm),
+      stills: (asset.stills ?? []).map(mediaUrl).filter(Boolean),
+    };
+  });
 }
 
 function listLibrary() {
@@ -403,6 +480,8 @@ function listLibrary() {
     name: asset.relPath ?? asset.name ?? path.basename(asset.path ?? ""),
     path: asset.source ?? asset.path,
     type: asset.type,
+    size: asset.size ?? null,
+    mtime: asset.mtimeMs ? new Date(asset.mtimeMs).toISOString() : null,
     duration: asset.duration,
     width: asset.width,
     height: asset.height,
@@ -477,6 +556,206 @@ function syncPayload() {
     };
   }
   return { registry, assets };
+}
+
+function resourcesPayload() {
+  const inv = inventory(cfg);
+  const issues = checkResources(cfg, { verify: false });
+  const requirements = requirementsStatus(cfg);
+  const counts = {};
+  const normalizeKind = (kind) => String(kind ?? "other").replace(/s$/, "");
+  const mediaExt = new Set([
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".webp",
+    ".avif",
+    ".gif",
+    ".svg",
+    ".mp3",
+    ".wav",
+    ".ogg",
+    ".m4a",
+    ".flac",
+  ]);
+  for (const entry of inv.entries) {
+    const kind = normalizeKind(entry.kind);
+    counts[kind] = (counts[kind] ?? 0) + 1;
+  }
+  return {
+    roots: cfg.assetRoots.map((root) =>
+      path.relative(ROOT, root).split(path.sep).join("/"),
+    ),
+    manifest: {
+      exists: inv.manifestExists,
+      entries: inv.entries.length,
+      generatedAt: inv.manifest.generatedAt ?? null,
+    },
+    counts,
+    entries: inv.entries.map((entry) => {
+      const info = fileStat(findAssetFile(cfg.assetRoots, entry.path));
+      return {
+        path: entry.path,
+        kind: normalizeKind(entry.kind),
+        size: info.size ?? entry.size ?? null,
+        mtime: info.mtime,
+        license: entry.license ?? "unknown",
+        source: entry.source ?? null,
+        family: entry.family ?? null,
+        weight: entry.weight ?? null,
+        style: entry.style ?? null,
+        media: (mediaExt.has(path.extname(entry.path).toLowerCase()) ||
+          /\.(woff2?|ttf|otf)$/i.test(entry.path))
+          ? assetMediaUrl(entry.path)
+          : null,
+      };
+    }),
+    fonts: inv.fonts.map((entry) => {
+      const info = fileStat(findAssetFile(cfg.assetRoots, entry.path));
+      return {
+        path: entry.path,
+        family: entry.family,
+        weight: entry.weight,
+        style: entry.style ?? null,
+        license: entry.license ?? "unknown",
+        source: entry.source ?? null,
+        size: info.size,
+        mtime: info.mtime,
+        media: assetMediaUrl(entry.path),
+      };
+    }),
+    music: inv.music.map((track) => {
+      const info = fileStat(track.resolved?.file);
+      return {
+        id: track.id,
+        file: track.file,
+        title: track.title,
+        mood: track.mood,
+        energy: track.energy,
+        bpm: track.bpm,
+        duration: track.duration,
+        license: track.license ?? "unknown",
+        source: track.source ?? null,
+        size: info.size,
+        mtime: info.mtime,
+        src: track.resolved?.src ?? null,
+        media: track.resolved ? assetMediaUrl(track.resolved.relative) : null,
+      };
+    }),
+    sfx: inv.sfx.map((item) => {
+      const info = fileStat(item.resolved?.file);
+      return {
+        id: item.id,
+        file: item.file,
+        category: item.category,
+        gain: item.gain,
+        duration: item.duration,
+        license: item.license ?? "unknown",
+        source: item.source ?? null,
+        size: info.size,
+        mtime: info.mtime,
+        src: item.resolved?.src ?? null,
+        media: item.resolved ? assetMediaUrl(item.resolved.relative) : null,
+      };
+    }),
+    issues,
+    requirements,
+  };
+}
+
+function modulesPayload() {
+  const catalog = readJson(path.join(DATA, "catalog.json"), { assets: [] }).assets ?? [];
+  const library = readJson(path.join(DATA, "library.json"), { assets: [] }).assets ?? [];
+  const quality = readJson(path.join(DATA, "quality", "report.json"), null);
+  const outputs = listOutputs();
+  const registry = registryStatus(cfg);
+  const inv = inventory(cfg);
+  const works = new Set(catalog.filter((asset) => asset.workId).map((asset) => asset.workId));
+  let projects = 0;
+  if (existsSync(cfg.paths.creative)) {
+    projects = readdirSync(cfg.paths.creative, { withFileTypes: true }).filter(
+      (entry) =>
+        entry.isDirectory() &&
+        existsSync(path.join(cfg.paths.creative, entry.name, "creative.json")),
+    ).length;
+  }
+  const lastByStage = {};
+  for (const job of [...jobs.values()].sort((a, b) =>
+    String(a.createdAt).localeCompare(String(b.createdAt)),
+  )) {
+    if (job.stage) lastByStage[job.stage] = publicJob(job);
+  }
+  const qualitySummary = quality?.summary;
+  const qualityText = qualitySummary
+    ? `${qualitySummary.analyzed}/${qualitySummary.assets} 条 / ${qualitySummary.nearDuplicates} 近似`
+    : "未生成报告";
+  return {
+    counts: {
+      footage: library.length,
+      catalog: catalog.length,
+      outputs: outputs.length,
+      projects,
+      works: works.size,
+    },
+    modules: [
+      {
+        id: "scan",
+        label: "扫描素材",
+        command: "node run.mjs scan",
+        summary: `实拍 ${library.length} 条`,
+        detail: `素材根 ${cfg.footage.roots.length} 个`,
+        last: lastByStage.scan ?? null,
+      },
+      {
+        id: "creative",
+        label: "创意工程",
+        command: "node run.mjs creative build",
+        summary: `${projects} 个工程`,
+        detail: `生成素材 ${catalog.length} 条`,
+        last: lastByStage.creative ?? null,
+      },
+      {
+        id: "quality",
+        label: "质量分析",
+        command: "node run.mjs quality",
+        summary: qualityText,
+        detail: "pHash / 聚类 / 覆盖矩阵",
+        last: lastByStage.quality ?? null,
+      },
+      {
+        id: "mix",
+        label: "混剪成片",
+        command: "node run.mjs mix",
+        summary: `${outputs.length} 条成片`,
+        detail: `默认 ${cfg.mix.duration}s / seed ${cfg.mix.seed}`,
+        last: lastByStage.mix ?? null,
+      },
+      {
+        id: "fission",
+        label: "批量裂变",
+        command: "node run.mjs fission",
+        summary: `${works.size} 个作品`,
+        detail: cfg.fission.generateAssets ? "生成作品专属素材" : "只用 shared 素材",
+        last: lastByStage.fission ?? null,
+      },
+      {
+        id: "sync",
+        label: "内容同步",
+        command: "node run.mjs sync",
+        summary: registry.ok ? "注册表最新" : "注册表待更新",
+        detail: `清单 ${inv.entries.length} 条 / 未登记 ${inv.diff.added.length}`,
+        last: lastByStage.sync ?? null,
+      },
+      {
+        id: "shared",
+        label: "公共资源",
+        command: "node run.mjs shared status",
+        summary: `${inv.entries.length} 条资源`,
+        detail: `字体 ${inv.fonts.length} / BGM ${inv.music.length} / SFX ${inv.sfx.length}`,
+        last: null,
+      },
+    ],
+  };
 }
 
 function creativePayload() {
@@ -656,6 +935,14 @@ function saveCreativeVariant(creativeId, variantId, body) {
   return { ok: true, variant: next, changed, warnings: result.warnings };
 }
 
+function labelsPayload() {
+  const data = readJson(path.join(ROOT, "config", "labels.json"), {
+    version: 1,
+    groups: {},
+  });
+  return data && typeof data === "object" ? data : { version: 1, groups: {} };
+}
+
 function statusPayload() {
   const catalog = readJson(path.join(DATA, "catalog.json"), { assets: [] }).assets ?? [];
   const library = readJson(path.join(DATA, "library.json"), { assets: [] }).assets ?? [];
@@ -698,6 +985,14 @@ async function readBody(req, limit = 1024 * 1024) {
   return raw ? JSON.parse(raw) : {};
 }
 
+function safeText(label, value, max = 200) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  if (text.startsWith("-")) throw new Error(`${label} 不能以 - 开头`);
+  if (text.length > max) throw new Error(`${label} 过长`);
+  return text;
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host ?? "127.0.0.1"}`);
   const pathname = url.pathname;
@@ -737,6 +1032,137 @@ const server = createServer(async (req, res) => {
       json(res, 200, readJson(file, { version: 1, stages: {} }));
       return;
     }
+    if (pathname === "/api/labels" && req.method === "GET") {
+      json(res, 200, labelsPayload());
+      return;
+    }
+    if (pathname === "/api/market/providers" && req.method === "GET") {
+      json(res, 200, {
+        providers: marketProviders(cfg),
+        defaults: marketDefaults(cfg),
+      });
+      return;
+    }
+    if (pathname === "/api/market/providers" && req.method === "POST") {
+      const body = await readBody(req);
+      const action = String(body.action ?? "");
+      if (!["add", "set", "remove"].includes(action)) {
+        throw new Error("action 只能是 add / set / remove");
+      }
+      const id = safeText("市场源 id", body.id, 40);
+      if (!id) throw new Error("缺少市场源 id");
+      const args = ["providers", action, id];
+      if (action === "add") {
+        const type = safeText("type", body.type);
+        const label = safeText("label", body.label);
+        const kind = safeText("kind", body.kind);
+        const baseUrl = safeText("baseUrl", body.baseUrl, 500);
+        const featured = safeText("featured", body.featured, 500);
+        const suggestions = safeText("suggestions", body.suggestions, 500);
+        const searchPlaceholder = safeText("searchPlaceholder", body.searchPlaceholder);
+        if (type) args.push("--type", type);
+        if (label) args.push("--label", label);
+        if (kind) args.push("--kind", kind);
+        if (baseUrl) args.push("--base-url", baseUrl);
+        if (featured) args.push("--featured", featured);
+        if (suggestions) args.push("--suggestions", suggestions);
+        if (searchPlaceholder) args.push("--search-placeholder", searchPlaceholder);
+      }
+      if (action === "set") {
+        const label = safeText("label", body.label);
+        const kind = safeText("kind", body.kind);
+        const baseUrl = safeText("baseUrl", body.baseUrl, 500);
+        const featured = safeText("featured", body.featured, 500);
+        const suggestions = safeText("suggestions", body.suggestions, 500);
+        const searchPlaceholder = safeText("searchPlaceholder", body.searchPlaceholder);
+        if (label) args.push("--label", label);
+        if (kind) args.push("--kind", kind);
+        if (baseUrl) args.push("--base-url", baseUrl);
+        if (featured) args.push("--featured", featured);
+        if (suggestions) args.push("--suggestions", suggestions);
+        if (searchPlaceholder) args.push("--search-placeholder", searchPlaceholder);
+        if (body.cacheHours !== undefined && body.cacheHours !== null && String(body.cacheHours).trim() !== "") {
+          const hours = Number(body.cacheHours);
+          if (!Number.isFinite(hours) || hours < 1) throw new Error("cacheHours 必须是正数");
+          args.push("--cache-hours", String(hours));
+        }
+        if (body.enabled !== undefined) {
+          args.push("--enabled", body.enabled === false || body.enabled === "false" ? "false" : "true");
+        }
+      }
+      const job = enqueueTool("market:providers", "tools/market.mjs", args);
+      json(res, 202, publicJob(job));
+      return;
+    }
+    if (pathname === "/api/market/search" && req.method === "GET") {
+      try {
+        const limitParam = url.searchParams.get("limit");
+        const result = await searchIconify(cfg, url.searchParams.get("q") ?? "", {
+          limit: limitParam === null ? undefined : Number(limitParam),
+          providerId: url.searchParams.get("provider"),
+        });
+        json(res, 200, result);
+      } catch (error) {
+        json(res, 502, { error: error.message });
+      }
+      return;
+    }
+    if (pathname === "/api/market/featured" && req.method === "GET") {
+      try {
+        const result = await featuredIconify(cfg, {
+          providerId: url.searchParams.get("provider"),
+        });
+        json(res, 200, result);
+      } catch (error) {
+        json(res, 502, { error: error.message });
+      }
+      return;
+    }
+    if (pathname === "/api/market/collection" && req.method === "GET") {
+      try {
+        const offsetParam = url.searchParams.get("offset");
+        const limitParam = url.searchParams.get("limit");
+        const result = await collectionIconify(cfg, {
+          providerId: url.searchParams.get("provider"),
+          prefix: url.searchParams.get("prefix") ?? "",
+          query: url.searchParams.get("q") ?? "",
+          offset: offsetParam === null ? 0 : Number(offsetParam),
+          limit: limitParam === null ? undefined : Number(limitParam),
+        });
+        json(res, 200, result);
+      } catch (error) {
+        json(res, 502, { error: error.message });
+      }
+      return;
+    }
+    if (pathname === "/api/market/import" && req.method === "POST") {
+      const body = await readBody(req);
+      const icon = safeText("图标 id", body.icon, 120);
+      if (!icon) throw new Error("缺少图标 id");
+      try {
+        const entry = await resolveIconifyIcon(cfg, icon, {
+          providerId: body.provider ? String(body.provider) : null,
+        });
+        const args = [
+          "add",
+          entry.url,
+          "--kind",
+          "icons",
+          "--name",
+          entry.fileName,
+          "--license",
+          entry.license,
+          "--source",
+          entry.source,
+        ];
+        if (body.force) args.push("--force");
+        const job = enqueueTool("assets:add", "tools/assets.mjs", args);
+        json(res, 202, { job: publicJob(job), entry });
+      } catch (error) {
+        json(res, 502, { error: error.message });
+      }
+      return;
+    }
     if (pathname === "/api/catalog" && req.method === "GET") {
       json(res, 200, { assets: listCatalog() });
       return;
@@ -762,6 +1188,114 @@ const server = createServer(async (req, res) => {
     }
     if (pathname === "/api/creative" && req.method === "GET") {
       json(res, 200, creativePayload());
+      return;
+    }
+    if (pathname === "/api/resources" && req.method === "GET") {
+      json(res, 200, resourcesPayload());
+      return;
+    }
+    if (pathname === "/api/modules" && req.method === "GET") {
+      json(res, 200, modulesPayload());
+      return;
+    }
+    if (pathname === "/api/resources/import" && req.method === "POST") {
+      const body = await readBody(req);
+      const targets = (Array.isArray(body.paths) ? body.paths : [body.path])
+        .map((value) => safeText("路径", value, 1000))
+        .filter(Boolean);
+      if (!targets.length) throw new Error("缺少导入路径");
+      if (targets.length > 50) throw new Error("一次最多 50 个目标");
+      const args = ["add", ...targets];
+      if (body.keep) args.push("--keep");
+      const kind = safeText("kind", body.kind);
+      const license = safeText("license", body.license);
+      const source = safeText("source", body.source);
+      if (kind) args.push("--kind", kind);
+      if (license) args.push("--license", license);
+      if (source) args.push("--source", source);
+      const job = enqueueTool("assets:add", "tools/assets.mjs", args);
+      json(res, 202, publicJob(job));
+      return;
+    }
+    if (pathname === "/api/resources/meta" && req.method === "POST") {
+      const body = await readBody(req);
+      if (body.type === "font") {
+        const target = safeText("字体路径", body.path, 1000);
+        if (!target) throw new Error("缺少字体路径");
+        const args = ["font", "set", target];
+        for (const [key, flagName] of [
+          ["family", "--family"],
+          ["weight", "--weight"],
+          ["style", "--style"],
+        ]) {
+          const value = safeText(key, body[key]);
+          if (value) args.push(flagName, value);
+        }
+        if (args.length === 3) throw new Error("没有要修改的字体字段");
+        const job = enqueueTool("assets:font-set", "tools/assets.mjs", args);
+        json(res, 202, publicJob(job));
+        return;
+      }
+      if (body.type === "audio") {
+        const id = safeText("音频 id", body.id);
+        if (!id) throw new Error("缺少音频 id");
+        const args = ["audio", "set", id];
+        const audioKind = safeText("kind", body.audioKind);
+        if (audioKind) {
+          if (!["music", "sfx"].includes(audioKind)) {
+            throw new Error("audioKind 只能是 music / sfx");
+          }
+          args.push("--kind", audioKind);
+        }
+        for (const key of ["category", "mood", "energy", "title", "artist", "license"]) {
+          const value = safeText(key, body[key]);
+          if (value) args.push(`--${key}`, value);
+        }
+        for (const key of ["gain", "bpm"]) {
+          if (
+            body[key] === undefined ||
+            body[key] === null ||
+            String(body[key]).trim() === ""
+          ) {
+            continue;
+          }
+          const value = Number(body[key]);
+          if (!Number.isFinite(value)) throw new Error(`${key} 必须是数字`);
+          args.push(`--${key}`, String(value));
+        }
+        const roles = Array.isArray(body.roles)
+          ? body.roles.map((role) => safeText("role", role)).filter(Boolean)
+          : [];
+        if (roles.length) args.push("--roles", roles.join(","));
+        if (args.length === 3) throw new Error("没有要修改的音频字段");
+        const job = enqueueTool("assets:audio-set", "tools/assets.mjs", args);
+        json(res, 202, publicJob(job));
+        return;
+      }
+      throw new Error("type 只能是 font 或 audio");
+    }
+    if (pathname === "/api/resources/scan" && req.method === "POST") {
+      const body = await readBody(req);
+      const action = String(body.action ?? "");
+      const map = {
+        assets: ["assets:scan", "tools/assets.mjs", ["scan", "--apply"]],
+        audio: ["assets:audio-scan", "tools/assets.mjs", ["audio", "scan", "--apply"]],
+        fonts: ["shared:fonts", "run.mjs", ["shared", "fonts", "--write"]],
+      };
+      const entry = map[action];
+      if (!entry) throw new Error("action 只能是 assets / audio / fonts");
+      const job = enqueueTool(entry[0], entry[1], entry[2]);
+      json(res, 202, publicJob(job));
+      return;
+    }
+    if (pathname === "/api/resources/remove" && req.method === "POST") {
+      const body = await readBody(req);
+      const target = safeText("路径", body.path, 1000);
+      if (!target) throw new Error("缺少资源路径");
+      const args = ["remove", target];
+      if (body.keepFile) args.push("--keep-file");
+      const job = enqueueTool("assets:remove", "tools/assets.mjs", args);
+      json(res, 202, publicJob(job));
       return;
     }
     if (pathname === "/api/sync" && req.method === "GET") {
@@ -892,6 +1426,48 @@ const server = createServer(async (req, res) => {
         ], { detached: true, stdio: "ignore" }).unref();
       }
       json(res, 200, { ok: true });
+      return;
+    }
+
+    if (pathname.startsWith("/media/footage/")) {
+      const parts = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+      const id = parts[2] ?? "";
+      const library = readJson(path.join(DATA, "library.json"), { assets: [] }).assets ?? [];
+      const asset = library.find((item) => item.id === id);
+      if (!asset?.source) {
+        text(res, 404, "Not found");
+        return;
+      }
+      const file = path.resolve(asset.source);
+      const roots = cfg.footage.roots.map((root) => path.resolve(root));
+      if (!roots.some((root) => inside(root, file))) {
+        text(res, 403, "Forbidden");
+        return;
+      }
+      serveFile(req, res, file);
+      return;
+    }
+
+    if (pathname.startsWith("/media/assets/")) {
+      const parts = pathname.split("/").filter(Boolean).map(decodeURIComponent);
+      const relative = parts.slice(2).join("/");
+      let file = null;
+      for (const root of cfg.assetRoots) {
+        const candidate = path.join(root, ...relative.split("/"));
+        if (
+          inside(root, candidate) &&
+          existsSync(candidate) &&
+          statSync(candidate).isFile()
+        ) {
+          file = candidate;
+          break;
+        }
+      }
+      if (!file) {
+        text(res, 404, "Not found");
+        return;
+      }
+      serveFile(req, res, file);
       return;
     }
 

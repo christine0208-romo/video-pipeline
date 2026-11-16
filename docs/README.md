@@ -6,7 +6,7 @@
 
 | 目录 | 放什么 | 权威文档 |
 |---|---|---|
-| `architecture/` | 系统如何组成、各层边界与契约 | `ARCHITECTURE.md`、`SHARED.md`、`CREATIVE.md`、`ASSETS.md`、`AUDIO.md` |
+| `architecture/` | 系统如何组成、各层边界与契约 | `ARCHITECTURE.md`、`SHARED.md`、`CREATIVE.md`、`ASSETS.md`、`AUDIO.md`、`MARKET.md` |
 | `operations/` | 怎么跑、怎么排错、怎么发布 | `WORKFLOW.md`、`WORKBENCH.md`、`FISSION.md`、`QUALITY.md`、`DEPENDENCIES.md`、`TROUBLESHOOTING.md` |
 | `reference/` | 细则、提示词库与镜头卡 | `RULES.md`、`MOTION_PROMPTS.md`、`shots/` |
 | `records/` | 当前有效的经验与决策索引（默认阅读面） | `LESSONS.md`、`DECISIONS.md` |
@@ -23,6 +23,7 @@
 | `architecture/CREATIVE.md` | 创意工程的文件格式、引擎契约、构建语义 | 改引擎 schema、工程格式 |
 | `architecture/ASSETS.md` | 生成素材的分类、完整性、质量契约 | 改 category / 完整性规则 |
 | `architecture/AUDIO.md` | 音效与 BGM 来源、选曲、落点 | 改音频索引或落点规则 |
+| `architecture/MARKET.md` | 资源市场目录、provider、导入与许可 | 改 market/目录契约或 provider |
 | `operations/WORKFLOW.md` | 从环境到出片的操作顺序、常见任务 | 改命令或流程步骤 |
 | `operations/WORKBENCH.md` | 工作台页面与 API | 改工作台 |
 | `operations/FISSION.md` | 裂变作品的隔离、缓存、清理 | 改 fission |

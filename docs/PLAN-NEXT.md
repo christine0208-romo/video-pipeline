@@ -12,39 +12,49 @@
 
 ## 0.1 版本与分支
 
-一个阶段 = 一个小版本 = 一个 `feat/*` 分支；合并 `main` 后打 tag。开发期默认 `0.0.x`，阶段稳定点用 `0.y.0`，正式发行才用 `1.0.0`。
+一个阶段 = 一个小版本 = 一个 `feat/*` 分支；合并 `main` 后打 tag。功能升级未结束前保持 `0.0.x`，只有明确宣布稳定点才用 `0.y.0`，正式发行才用 `1.0.0`。
 
 | 阶段 | 版本 | 分支 |
 |---|---|---|
-| 当前开发基线 | `v0.0.1` | 直接进入 `main` |
-| Phase 1 本地资源管理与检查 | `v0.1.0` | `feat/resource-manager` |
-| Phase 2 目录契约与只读 provider | `v0.2.0` | `feat/resource-market` |
-| Phase 3 音效/图片/视频与许可看板 | `v0.3.0` | `feat/resource-providers` |
-| Phase 4 市场目录与私有源 | `v0.4.0` | `feat/market-catalog` |
-| 插件系统（未排期） | `v0.5.0` | `feat/plugin-system` |
+| 当前开发基线 | `v0.0.2` | 直接进入 `main` |
+| Phase 2 目录契约与只读 provider | `v0.0.3` | `feat/resource-market` |
+| Phase 3 音效/图片/视频与许可看板 | `v0.0.4` | `feat/resource-providers` |
+| Phase 4 市场目录与私有源 | `v0.0.5` | `feat/market-catalog` |
+| 插件系统（未排期） | `v0.0.6` | `feat/plugin-system` |
+| 稳定点（未排期，由用户宣布） | `v0.1.0` | `release/0.1` |
 | 正式发行版（未排期） | `v1.0.0` | `release/1.0` |
 
 规则见 `docs/operations/WORKFLOW.md` 第 13 节。
 
-## 1. Phase 1 · 本地资源管理与检查（无网络）
+## 1. Phase 1 · 本地资源管理与检查（已完成，v0.0.2）
 
-1. 工作台新增“资源”页：
-   - 本地清单：按 kind 浏览，预览（图片缩略图、音频波形/时长）、许可状态、缺失/未登记；
-   - 元数据编辑：调用 `audio set`、`font set` 的等价能力；
-   - 导入队列：拖入文件/目录，复用 `assets add`，显示进度与日志。
-2. `assets check --licenses`：列出 `license=unknown`、缺署名字段、音频缺 `mood/energy/category`、字体缺 `family/weight` 的条目。
-3. 内容包 `requirements.json`（内容侧声明，允许手改）：声明需要的字体族、音频类别、图标集；`shared requirements --check` 按角色报告缺口。
+- [x] 工作台“资源”页：清单 / 字体 / 音乐 / 音效，kind 标签、搜索、图片缩略图、音频试听、许可与元数据编辑、路径导入队列。
+- [x] `assets check --json|--licenses|--meta`：缺失、未登记、哈希、许可未知、字体/音频元数据缺失。
+- [x] `shared/requirements.json` + `shared requirements [--json] [--strict]`：字体族、音效类别、BGM 情绪、kind 数量缺口。
+- [x] 概览中的模块状态卡片：scan / creative / quality / mix / fission / sync / shared 的计数、状态、最近任务与只读检查。
+- [x] 工具任务白名单与参数校验；`/media/assets/*` 只读素材媒体。
 
-验收：工作台能看清“有什么、缺什么、许可是否齐全”；一条命令列出待补元数据。
+验收：资源页能看清“有什么、缺什么、许可/元数据是否齐全”；一条命令输出结构化缺口；概览可发起只读检查。
 
-## 2. Phase 2 · 目录契约与只读 provider
+后续可加：拖拽导入、音频波形、批量编辑、资源使用位置统计。
 
-1. 定义 catalog 条目：`id/kind/name/tags/license/source/url/sha256/preview/version`。
-2. 接入两个只读 provider：Iconify（图标）、Google Fonts（字体）。
-3. 一键导入：下载到缓存 → 校验哈希/类型 → 复制到素材根 → 登记清单/字体清单；记录 lock（来源、版本、哈希）。
-4. API key 放 `config/local.json`，无 key 的 provider 默认禁用。
+## 2. Phase 2 · 目录契约与只读 provider（进行中）
 
-验收：工作台搜索 → 预览 → 导入 → `shared validate --strict` 通过；断网时用 lock 与缓存复现。
+- [x] catalog 条目契约（`id/kind/name/prefix/collection/license/source/url/preview/fileName`）。
+- [x] Iconify 只读 provider：搜索、图标集许可元数据、24h 缓存。
+- [x] 市场并入资源页：本地资源 / 在线市场两种模式。
+- [x] 来源管理：默认值在 `config/pipeline.json` 的 `market.defaults`、来源在 `config/local.json`；`market.mjs providers list/add/set/remove`，工作台可添加/编辑/停用/移除。
+- [x] 无搜索时展示推荐图标集与快捷搜索词；推荐与搜索词全部来自 provider 配置。
+- [x] 推荐图标集可进入完整集合：集合内搜索、分页加载。
+- [x] 资源移除：`assets remove` 自动取消清单/音频索引登记，同步 `fonts.ts` 与 CREDITS；工作台提供删除文件/仅取消登记。
+- [x] 样张只打开预览；导入显式确认，显示目标路径与已导入状态，重复导入按清单路径去重。
+- [x] 一键导入：服务端重新解析 `prefix:name`，复用 `assets add`，写入清单与 CREDITS。
+- [ ] Google Fonts provider。
+- [ ] lock/版本固定策略（当前以清单的 `url + sha256 + source` 记录）。
+
+当前改动与 Phase 1 同在工作树（分支 `feat/resource-manager`、版本 `0.0.2`）；提交时按版本规范拆分，Phase 2 对应 `0.0.3`。
+
+验收：资源页切换本地/市场 → 来源增删改 → 推荐或搜索 → 导入 → `shared validate --strict` 通过；断网时本地资源管理不受影响。
 
 ## 3. Phase 3 · 音效/图片/视频与许可看板
 
@@ -58,12 +68,18 @@
 2. 创作物（动效/组件）以创意包形式分发：`engine.json`、`index.tsx`、变体、预览、版本、许可，导入前审核。
 3. 不做：自动执行远程代码、自动升级素材、抓取许可不明的站点。
 
-## 5. 后续候选（未排期）
+## 5. 插件层：暂不实现（结论）
 
-- 系统插件系统：允许在工作台/命令行挂载外部能力（provider、导出器、审核器），插件清单、权限与版本隔离单独立项，作为 `v2.x` 小版本推进。
+- 没有跨宿主通用的插件契约；第三方插件必须按宿主契约开发，现成生态里没有本系统的插件。
+- 自造通用插件框架（manifest + 加载器 + 权限 + 版本兼容 + 市场审核）成本高、收益低，当前不实现。
+- 保留现有轻量扩展点：市场 provider 适配器（`type` + `config/local.json`）、配置驱动、第三方库/SDK 在适配器内复用。
+- 只有出现明确的第三方插件需求（团队要安装自定义 provider/钩子）时，再选一个宿主标准迁移：MCP（AI 工具/资源）、oclif（CLI）、Fastify（服务端）。不做投机性实现。
+
+## 6. 后续候选（未排期）
+
 - 市场服务端与团队私有源：在 Phase 4 契约稳定后再做独立服务，不放进本仓库。
 
-## 6. 相关文档
+## 7. 相关文档
 
 - 规范：`docs/architecture/SHARED.md`（清单、字体、音频、记账/创作文件）、`docs/architecture/AUDIO.md`（音频索引）。
 - 工作台：`docs/operations/WORKBENCH.md`。

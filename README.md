@@ -41,6 +41,7 @@ npm run doctor                # 体检；此时会提示素材未部署，属正
 
 ```bash
 # 把视频放进 footage/ 目录，或在本机配置里指定绝对路径：
+#   cp config/local.example.json config/local.json
 #   config/local.json -> { "footage": { "roots": ["D:/my-footage"] } }
 node run.mjs scan             # 扫描成 data/library.json；看缩略图确认画面
 ```
@@ -170,6 +171,9 @@ node run.mjs check                 # 已有 EDL 的去重/时长校验
 | `config/pipeline.json` | 可移植默认值：`spec`、`footage.roots`、`assets.roots`、`shared.root`、`creative.root`、`mix` | 是 |
 | `config/local.json` | 本机覆盖：素材绝对路径、ffmpeg 路径 | 否 |
 | `config/parameters.json` | 工作台任务表单的字段 | 是 |
+| `config/labels.json` | 工作台枚举标签与悬浮说明 | 是 |
+
+资源市场默认值在 `config/pipeline.json` 的 `market.defaults`；具体来源写在 `config/local.json` 的 `market.providers`（不提交）。
 
 不要为了本机路径改 `pipeline.json`；写进 `config/local.json`（参考 `local.example.json`）。
 

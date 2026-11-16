@@ -280,6 +280,7 @@ Agent 与人类使用同一套命令与闸门；不允许自创目录、配置�
 禁止事项：
 
 - 不得发明新目录、新配置键、新命令或平行流程；
+- 不得在未说明职责、替代方案与优缺点前新增核心文件；能用现有文件、配置或依赖解决的不新建；
 - 不得把创意实现、素材清单、平台预设写进 core；
 - 不得手改 `data/`；需要改就改配置或源码并重跑 stage；
 - 不得推断许可；未知许可的素材不登记、不使用；
@@ -287,6 +288,8 @@ Agent 与人类使用同一套命令与闸门；不允许自创目录、配置�
 - 不并发跑多个 Remotion 渲染。
 
 ### 12.2 标准循环
+
+新增核心文件前，先按 `docs/reference/RULES.md` 第 11 节给出“四问”提案；用户确认或满足独立消费者、独立依赖方向、稳定职责后再建文件。
 
 资源准备（首次或换内容包时）：
 
@@ -324,6 +327,7 @@ node run.mjs shared status --json                # 清单/字体/音频/预设/�
 node run.mjs shared validate --strict --json     # { ok, errors, warnings }
 node run.mjs creative plan --json                # 将生成的素材
 node run.mjs quality --report-only               # data/quality/report.json
+ALLOW_NEW_FILES=1 npm run check                  # 仅在新文件四问已确认时使用
 ```
 
 ### 12.4 完成定义（Done）
@@ -343,20 +347,20 @@ node run.mjs quality --report-only               # data/quality/report.json
 
 ## 13. 分支与版本
 
-默认约定：**开发阶段默认 `0.0.x`（小步迭代）；阶段性稳定点才用 `0.y.0`；正式发行版才用 `1.0.0`。用户未明确说明的改动都按小版本处理，走短分支。**
+默认约定：**功能升级推进期间保持 `0.0.x`（小步迭代）；只有用户明确宣布“稳定点”时才用 `0.y.0`；正式发行版才用 `1.0.0`。禁止擅自升版本。**
 
 ### 13.1 版本语义
 
 | 类型 | 触发 | 版本 |
 |---|---|---|
 | 开发迭代 | 功能、文档、修复等日常小步改动（默认） | `0.0.N` |
-| 阶段稳定点 | 一个 Phase 验收通过、可以整体交付 | `0.Y.0` |
-| 稳定点修复 | 阶段稳定点上的 bug 与文档修复 | `0.Y.Z` |
+| 阶段稳定点 | 用户明确宣布稳定点、功能升级告一段落 | `0.Y.0` |
+| 稳定点修复 | 稳定点上的 bug 与文档修复 | `0.Y.Z` |
 | 正式发行版 | 用户明确宣布结束开发阶段 | `1.0.0` |
 | 正式版之后 | 已发行版本的不兼容变更 | `X.0.0`（X≥2） |
 
-- 当前基线为 `v0.0.1`；Phase 1 完成时升 `v0.1.0`，之后每个 Phase 升 minor（0.2、0.3…）。
-- 资源市场与插件体系稳定、对外宣布正式发行时才发布 `1.0.0`。
+- 功能升级未结束时不要升 `0.1.0`；每次迭代只把 `0.0.N` 的 N +1。
+- 当前开发线为 `0.0.2`；是否进入 `0.1.0` 由用户决定。
 - 版本号写在 `package.json`；用 `npm version <ver> --no-git-tag-version` 同步 `package-lock.json`。
 - 发布后打附注标签 `vX.Y.Z`。
 
@@ -371,7 +375,7 @@ node run.mjs quality --report-only               # data/quality/report.json
 | `exp/<slug>` | 试验，不合并 | 按需 |
 
 - 一个分支只做一个版本；不要在同一分支混入下一个小版本。
-- 不在 `main` 上直接开发。当前这次大改动是例外：已作为 `v0.0.1` 直接进入 `main`。
+- 不在 `main` 上直接开发。当前这次大改动是例外：已作为 `v0.0.2` 直接进入 `main`。
 - 合并前跑完整门禁；合并后在 `main` 上打 tag 并推送。
 
 ### 13.3 发布流程
@@ -379,7 +383,7 @@ node run.mjs quality --report-only               # data/quality/report.json
 ```bash
 git switch -c feat/<slug>
 # 开发，更新 PLAN-NEXT 与相关文档
-npm version patch --no-git-tag-version    # 小步用 patch；阶段稳定点用 minor；正式发行用 1.0.0
+npm version patch --no-git-tag-version    # 开发迭代用 patch；只有用户宣布稳定点才用 minor；正式发行用 1.0.0
 npm run check && npm run typecheck
 node run.mjs shared validate --strict --json
 node run.mjs creative registry --check

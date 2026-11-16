@@ -1,0 +1,115 @@
+{
+  "version": 1,
+  "groups": {
+    "category": {
+      "icon": { "label": "图标", "hint": "图标类生成素材：品牌图标、UI 图标或图标组合动效" },
+      "text": { "label": "文字", "hint": "文字类生成素材：标题、关键词、逐字/逐行动效" },
+      "transition": { "label": "转场", "hint": "转场类生成素材：透明 WebM，用于镜头之间过渡" },
+      "particle": { "label": "粒子", "hint": "粒子类生成素材：光点、尘埃、能量等叠加层" },
+      "camera": { "label": "镜头", "hint": "镜头类生成素材：相机运动或场景推拉；混剪时不再套运镜" },
+      "ui": { "label": "界面", "hint": "界面示意类生成素材：手机 UI、面板、操作流程（需标“示意”）" },
+      "graphic": { "label": "图形", "hint": "图形类生成素材：几何、线条、形状组合" }
+    },
+    "layer": {
+      "scene": { "label": "场景层", "hint": "作为主要画面铺满画布的素材" },
+      "overlay": { "label": "叠加层", "hint": "叠加在实拍或其他画面之上的透明素材" },
+      "transition": { "label": "转场层", "hint": "用于两个镜头之间过渡的素材" }
+    },
+    "status": {
+      "approved": { "label": "已批准", "hint": "可以进入混剪的素材" },
+      "draft": { "label": "待审核", "hint": "已生成但尚未批准，默认不进入混剪" },
+      "retired": { "label": "已退役", "hint": "不再进入混剪，但文件仍保留" }
+    },
+    "qualityFlag": {
+      "static": { "label": "静止", "hint": "画面几乎没有运动，可能是空帧或静态图" },
+      "blank": { "label": "空白", "hint": "画面接近纯色或没有有效内容" },
+      "faint-alpha": { "label": "极淡透明", "hint": "非透明像素覆盖率很低，叠加后几乎看不见" },
+      "empty-alpha": { "label": "空透明", "hint": "透明通道为空，叠加后不可见" },
+      "alpha-unknown": { "label": "透明未知", "hint": "无法读取透明通道，需要人工检查" },
+      "loop-mismatch": { "label": "循环不闭合", "hint": "循环素材的首尾差异较大" },
+      "end-unsettled": { "label": "末帧未稳定", "hint": "末帧仍在运动，不适合停在画面上" },
+      "end-residue": { "label": "末帧残留", "hint": "末帧还有残留元素，收起不干净" }
+    },
+    "jobStatus": {
+      "queued": { "label": "排队中", "hint": "等待当前任务结束后开始" },
+      "running": { "label": "运行中", "hint": "任务正在执行" },
+      "done": { "label": "完成", "hint": "任务正常结束，退出码 0" },
+      "failed": { "label": "失败", "hint": "任务以非零退出码结束，查看日志" },
+      "cancelled": { "label": "已取消", "hint": "用户取消了任务" },
+      "interrupted": { "label": "已中断", "hint": "工作台重启时任务未完成" }
+    },
+    "stage": {
+      "scan": { "label": "扫描素材", "hint": "扫描实拍素材根，生成 data/library.json" },
+      "creative": { "label": "创意工程", "hint": "创意工程的校验、预览、构建与审核" },
+      "quality": { "label": "质量分析", "hint": "对生成素材做 pHash、透明、运动与聚类分析" },
+      "mix": { "label": "混剪成片", "hint": "规划 EDL 并渲染成片" },
+      "fission": { "label": "批量裂变", "hint": "按作品批量生成专属素材与成片" },
+      "check": { "label": "校验 EDL", "hint": "检查已有 EDL 的签名、区间与时长约束" },
+      "sync": { "label": "内容同步", "hint": "同步注册表、素材清单与实拍索引" },
+      "assets:add": { "label": "导入素材", "hint": "通过工作台调用 assets add 导入文件/目录/URL" },
+      "assets:scan": { "label": "扫描素材库", "hint": "登记素材根里尚未写入清单的文件" },
+      "assets:audio-scan": { "label": "扫描音频", "hint": "扫描所有素材根中的音频并写入索引" },
+      "assets:font-set": { "label": "字体元数据", "hint": "修改字体的 family/weight/style 并重写 fonts.ts" },
+      "assets:audio-set": { "label": "音频元数据", "hint": "修改 BGM/音效的 mood、energy、category 等" },
+      "assets:remove": { "label": "移除资源", "hint": "取消清单/音频索引登记，可选择删除磁盘文件" },
+      "shared:fonts": { "label": "生成字体清单", "hint": "从素材清单的字体条目重写 shared/fonts.ts" },
+      "market:providers": { "label": "市场源管理", "hint": "添加、修改或移除市场 provider" }
+    },
+    "matrix": {
+      "paletteByLayer": { "label": "调色板 × 层", "hint": "不同调色板在各层的覆盖情况" },
+      "creativeByPalette": { "label": "创意工程 × 调色板", "hint": "各创意工程使用的调色板分布" },
+      "engineByLayer": { "label": "引擎 × 层", "hint": "各引擎在各层产出的素材数量" },
+      "scopeByLayer": { "label": "范围 × 层", "hint": "shared / work 素材在各层的分布" }
+    },
+    "resourceKind": {
+      "font": { "label": "字体", "hint": "字体文件与字体清单条目" },
+      "icon": { "label": "图标", "hint": "SVG 图标与图标组" },
+      "brand": { "label": "图片/品牌", "hint": "品牌图、位图图片与通用图片素材" },
+      "map": { "label": "地图", "hint": "地图、点阵或地理相关素材" },
+      "music": { "label": "音乐", "hint": "BGM 与音乐索引条目" },
+      "sfx": { "label": "音效", "hint": "音效与音效索引条目" },
+      "other": { "label": "其他", "hint": "未归入标准 kind 的素材" }
+    },
+    "resourceTab": {
+      "manifest": { "label": "全部素材", "hint": "素材清单：assets.manifest.json 中登记的所有文件；字体/音乐/音效另有专门视图" },
+      "fonts": { "label": "字体", "hint": "字体文件与 family/weight/style" },
+      "music": { "label": "音乐", "hint": "BGM 索引条目，可试听与编辑情绪/能量/BPM" },
+      "sfx": { "label": "音效", "hint": "音效索引条目，可试听与编辑类别/增益" }
+    },
+    "resourceMode": {
+      "local": { "label": "本地资源", "hint": "浏览、编辑、导入、移除本地素材" },
+      "market": { "label": "在线市场", "hint": "从只读 provider 搜索、浏览与导入资源" }
+    },
+    "beat": {
+      "hook": { "label": "开场", "hint": "抓住注意力的开场节拍" },
+      "build": { "label": "铺垫", "hint": "建立信息与节奏的铺垫节拍" },
+      "proof": { "label": "证据", "hint": "展示证据或细节的节拍" },
+      "turn": { "label": "转折", "hint": "制造转折或反差的节拍" },
+      "close": { "label": "收束", "hint": "收束与收尾的节拍" }
+    },
+    "action": {
+      "approve": { "label": "批准", "hint": "允许素材进入混剪" },
+      "reject": { "label": "退役", "hint": "停止使用该素材，保留文件" },
+      "share": { "label": "提升为 shared", "hint": "把 work 素材提升为 shared 素材" },
+      "clean-work": { "label": "清理 work（dry-run）", "hint": "列出可清理的 work 素材；工作台只做 dry-run" }
+    },
+    "qualityMetric": {
+      "analyzed": { "label": "已分析", "hint": "已写入质量数据的生成素材数量" },
+      "clusters": { "label": "感知簇", "hint": "按 pHash 距离聚类的数量；越少说明画面越集中" },
+      "diversity": { "label": "多样性", "hint": "簇数 / 素材数；越高说明变化越丰富" },
+      "nearDuplicates": { "label": "近似重复", "hint": "感知相似度高于阈值的素材对数量" },
+      "warnings": { "label": "警告", "hint": "质量标记为警告的素材数" },
+      "flagged": { "label": "失败", "hint": "质量检查未通过的素材数" },
+      "alphaCoverage": { "label": "透明覆盖", "hint": "非透明像素占比；用于判断透明素材是否几乎为空" },
+      "motionEnergy": { "label": "运动能量", "hint": "相邻帧差异均值；越低越接近静止" },
+      "brightness": { "label": "亮度", "hint": "平均亮度" },
+      "contrast": { "label": "对比", "hint": "亮度标准差" },
+      "firstLastHamming": { "label": "首尾 Hamming", "hint": "首帧与末帧的 pHash 距离；用于循环闭合检查" },
+      "endMotion": { "label": "末帧运动", "hint": "末帧附近的运动量；越低越稳定" },
+      "alphaEnd": { "label": "末帧透明", "hint": "末帧透明覆盖率" },
+      "score": { "label": "score", "hint": "两张素材的感知相似度分数，越高越相似" },
+      "hamming": { "label": "Hamming", "hint": "pHash 汉明距离；越小越相似" },
+      "colorDistance": { "label": "色差", "hint": "平均颜色距离" }
+    }
+  }
+}
