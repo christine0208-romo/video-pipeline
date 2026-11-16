@@ -1509,10 +1509,6 @@ table.data audio {
   margin-top: 10px;
 }
 
-.market-collection {
-  padding: 14px;
-}
-
 .market-samples {
   display: flex;
   gap: 8px;
@@ -1553,6 +1549,61 @@ table.data audio {
   object-fit: contain;
 }
 
+.market-preview img.img-failed,
+.market-sample img.img-failed {
+  visibility: hidden;
+}
+
+.font-thumb {
+  background: var(--panel-2);
+}
+
+.font-sample {
+  font-size: 40px;
+  line-height: 1;
+  color: var(--text);
+}
+
+.market-collection-card .asset-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.market-collection-card .market-samples {
+  margin-top: 0;
+}
+
+.market-collection-card .btn {
+  align-self: flex-start;
+}
+
+.market-font-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 20px;
+  background: var(--panel-2);
+  color: var(--text);
+}
+
+.font-preview-title {
+  font-size: 30px;
+  line-height: 1.2;
+}
+
+.font-preview-line {
+  font-size: 24px;
+  line-height: 1.4;
+}
+
+.font-preview-line.small {
+  font-size: 16px;
+  opacity: 0.8;
+}
+
 .market-preview-box {
   min-height: 220px;
   background: var(--preview-bg);
@@ -1563,4 +1614,26 @@ table.data audio {
   max-width: 220px;
   max-height: 220px;
   object-fit: contain;
+}
+
+.back-to-top {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  z-index: 15;
+}
+
+.back-to-top:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }

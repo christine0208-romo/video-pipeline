@@ -17,7 +17,7 @@
 - `data/`、`out/`、`public/` 是运行时区域，不是核心源码；`public/` 只做 Remotion 静态投影。
 - `config/pipeline.json` 是稳定项目策略唯一来源；`config/pipeline.schema.json` 与 `tools/check-config.mjs` 校验字段、beat、引擎/创意、组件和项目 manifest 引用。
 - `creative/engines/*/engine.json` 与 `index.tsx` 是引擎的唯一来源；`creative/registry.ts` 由 scan 生成，必须与引擎包一致。
-- 工作台参数元数据在 `config/parameters.json`，标签与悬浮说明在 `config/labels.json`，接口为 `/api/config`、`/api/parameters`、`/api/components`、`/api/labels`。
+- 工作台界面元数据在 `config/workbench.json`（任务表单 `stages` + 枚举文案 `labels`），接口为 `/api/config`、`/api/parameters`、`/api/components`、`/api/labels`。
 - 缓存和迁移：`node run.mjs cache list|clean`、`node run.mjs public [--apply]`；删除和实体目录替换默认 dry-run/拒绝冲突。
 
 | 模块 | 入口 | 职责 | 关键函数 |

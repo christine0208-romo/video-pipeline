@@ -27,12 +27,16 @@ import {
   requirementsStatus,
 } from "../modules/lib/resources.mjs";
 import {
-  collectionIconify,
-  featuredIconify,
+  loadIconFile,
+  marketBrowse,
+  marketCollection,
   marketDefaults,
+  marketImportArgs,
   marketProviders,
-  resolveIconifyIcon,
-  searchIconify,
+  marketResolve,
+  marketSearch,
+  prefetchIconFiles,
+  providerTemplates,
 } from "../modules/lib/market.mjs";
 import { registryStatus } from "../modules/creative/registry.mjs";
 import {
@@ -935,12 +939,22 @@ function saveCreativeVariant(creativeId, variantId, body) {
   return { ok: true, variant: next, changed, warnings: result.warnings };
 }
 
-function labelsPayload() {
-  const data = readJson(path.join(ROOT, "config", "labels.json"), {
+function workbenchConfig() {
+  const data = readJson(path.join(ROOT, "config", "workbench.json"), {
     version: 1,
-    groups: {},
+    stages: {},
+    labels: {},
   });
-  return data && typeof data === "object" ? data : { version: 1, groups: {} };
+  return {
+    version: data?.version ?? 1,
+    stages: data?.stages ?? {},
+    labels: data?.labels ?? {},
+  };
+}
+
+function labelsPayload() {
+  const data = workbenchConfig();
+  return { version: data.version, groups: data.labels };
 }
 
 function statusPayload() {
@@ -1028,8 +1042,8 @@ const server = createServer(async (req, res) => {
       return;
     }
     if (pathname === "/api/parameters" && req.method === "GET") {
-      const file = path.join(ROOT, "config", "parameters.json");
-      json(res, 200, readJson(file, { version: 1, stages: {} }));
+      const data = workbenchConfig();
+      json(res, 200, { version: data.version, stages: data.stages });
       return;
     }
     if (pathname === "/api/labels" && req.method === "GET") {
@@ -1040,6 +1054,7 @@ const server = createServer(async (req, res) => {
       json(res, 200, {
         providers: marketProviders(cfg),
         defaults: marketDefaults(cfg),
+        templates: providerTemplates(cfg),
       });
       return;
     }
@@ -1057,29 +1072,29 @@ const server = createServer(async (req, res) => {
         const label = safeText("label", body.label);
         const kind = safeText("kind", body.kind);
         const baseUrl = safeText("baseUrl", body.baseUrl, 500);
-        const featured = safeText("featured", body.featured, 500);
-        const suggestions = safeText("suggestions", body.suggestions, 500);
+        const catalogUrl = safeText("catalogUrl", body.catalogUrl, 500);
+        const subset = safeText("subset", body.subset, 40);
         const searchPlaceholder = safeText("searchPlaceholder", body.searchPlaceholder);
         if (type) args.push("--type", type);
         if (label) args.push("--label", label);
         if (kind) args.push("--kind", kind);
         if (baseUrl) args.push("--base-url", baseUrl);
-        if (featured) args.push("--featured", featured);
-        if (suggestions) args.push("--suggestions", suggestions);
+        if (catalogUrl) args.push("--catalog-url", catalogUrl);
+        if (subset) args.push("--subset", subset);
         if (searchPlaceholder) args.push("--search-placeholder", searchPlaceholder);
       }
       if (action === "set") {
         const label = safeText("label", body.label);
         const kind = safeText("kind", body.kind);
         const baseUrl = safeText("baseUrl", body.baseUrl, 500);
-        const featured = safeText("featured", body.featured, 500);
-        const suggestions = safeText("suggestions", body.suggestions, 500);
+        const catalogUrl = safeText("catalogUrl", body.catalogUrl, 500);
+        const subset = safeText("subset", body.subset, 40);
         const searchPlaceholder = safeText("searchPlaceholder", body.searchPlaceholder);
         if (label) args.push("--label", label);
         if (kind) args.push("--kind", kind);
         if (baseUrl) args.push("--base-url", baseUrl);
-        if (featured) args.push("--featured", featured);
-        if (suggestions) args.push("--suggestions", suggestions);
+        if (catalogUrl) args.push("--catalog-url", catalogUrl);
+        if (subset) args.push("--subset", subset);
         if (searchPlaceholder) args.push("--search-placeholder", searchPlaceholder);
         if (body.cacheHours !== undefined && body.cacheHours !== null && String(body.cacheHours).trim() !== "") {
           const hours = Number(body.cacheHours);
@@ -1097,21 +1112,20 @@ const server = createServer(async (req, res) => {
     if (pathname === "/api/market/search" && req.method === "GET") {
       try {
         const limitParam = url.searchParams.get("limit");
-        const result = await searchIconify(cfg, url.searchParams.get("q") ?? "", {
+        const result = await marketSearch(cfg, url.searchParams.get("q") ?? "", {
           limit: limitParam === null ? undefined : Number(limitParam),
           providerId: url.searchParams.get("provider"),
         });
-        json(res, 200, result);
-      } catch (error) {
-        json(res, 502, { error: error.message });
-      }
-      return;
-    }
-    if (pathname === "/api/market/featured" && req.method === "GET") {
-      try {
-        const result = await featuredIconify(cfg, {
-          providerId: url.searchParams.get("provider"),
-        });
+        const byPrefix = new Map();
+        for (const entry of result.entries) {
+          if (entry.kind === "font" || !entry.prefix || !entry.name) continue;
+          const names = byPrefix.get(entry.prefix) ?? [];
+          names.push(entry.name);
+          byPrefix.set(entry.prefix, names);
+        }
+        for (const [prefix, names] of byPrefix) {
+          prefetchIconFiles(cfg, result.provider, prefix, names);
+        }
         json(res, 200, result);
       } catch (error) {
         json(res, 502, { error: error.message });
@@ -1122,13 +1136,44 @@ const server = createServer(async (req, res) => {
       try {
         const offsetParam = url.searchParams.get("offset");
         const limitParam = url.searchParams.get("limit");
-        const result = await collectionIconify(cfg, {
+        const result = await marketCollection(cfg, {
           providerId: url.searchParams.get("provider"),
           prefix: url.searchParams.get("prefix") ?? "",
           query: url.searchParams.get("q") ?? "",
           offset: offsetParam === null ? 0 : Number(offsetParam),
           limit: limitParam === null ? undefined : Number(limitParam),
         });
+        prefetchIconFiles(
+          cfg,
+          result.provider,
+          result.prefix,
+          result.entries.map((entry) => entry.name),
+        );
+        json(res, 200, result);
+      } catch (error) {
+        json(res, 502, { error: error.message });
+      }
+      return;
+    }
+    if (pathname === "/api/market/browse" && req.method === "GET") {
+      try {
+        const offsetParam = url.searchParams.get("offset");
+        const limitParam = url.searchParams.get("limit");
+        const result = await marketBrowse(cfg, {
+          providerId: url.searchParams.get("provider"),
+          category: url.searchParams.get("category") ?? "",
+          query: url.searchParams.get("q") ?? "",
+          offset: offsetParam === null ? 0 : Number(offsetParam),
+          limit: limitParam === null ? undefined : Number(limitParam),
+        });
+        for (const entry of result.entries) {
+          prefetchIconFiles(
+            cfg,
+            entry.provider,
+            entry.prefix,
+            (entry.samples ?? []).map((sample) => sample.name),
+          );
+        }
         json(res, 200, result);
       } catch (error) {
         json(res, 502, { error: error.message });
@@ -1137,25 +1182,13 @@ const server = createServer(async (req, res) => {
     }
     if (pathname === "/api/market/import" && req.method === "POST") {
       const body = await readBody(req);
-      const icon = safeText("图标 id", body.icon, 120);
-      if (!icon) throw new Error("缺少图标 id");
+      const icon = safeText("资源 id", body.icon, 120);
+      if (!icon) throw new Error("缺少资源 id");
       try {
-        const entry = await resolveIconifyIcon(cfg, icon, {
+        const entry = await marketResolve(cfg, icon, {
           providerId: body.provider ? String(body.provider) : null,
         });
-        const args = [
-          "add",
-          entry.url,
-          "--kind",
-          "icons",
-          "--name",
-          entry.fileName,
-          "--license",
-          entry.license,
-          "--source",
-          entry.source,
-        ];
-        if (body.force) args.push("--force");
+        const args = marketImportArgs(entry, { force: Boolean(body.force) });
         const job = enqueueTool("assets:add", "tools/assets.mjs", args);
         json(res, 202, { job: publicJob(job), entry });
       } catch (error) {
@@ -1426,6 +1459,44 @@ const server = createServer(async (req, res) => {
         ], { detached: true, stdio: "ignore" }).unref();
       }
       json(res, 200, { ok: true });
+      return;
+    }
+
+    if (pathname === "/media/market/icon" && req.method === "GET") {
+      try {
+        const providerId = url.searchParams.get("provider");
+        const prefix = url.searchParams.get("prefix") ?? "";
+        const siblings = (url.searchParams.get("names") ?? "")
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .slice(0, 12);
+        if (siblings.length) prefetchIconFiles(cfg, providerId, prefix, siblings);
+        const file = await loadIconFile(cfg, {
+          providerId,
+          prefix,
+          name: url.searchParams.get("name") ?? "",
+        });
+        res.writeHead(200, {
+          "Content-Type": "image/svg+xml; charset=utf-8",
+          "Cache-Control": "public, max-age=604800",
+          "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'",
+          "X-Content-Type-Options": "nosniff",
+        });
+        res.end(file);
+      } catch (error) {
+        if (error.pending) {
+          res.writeHead(200, {
+            "Content-Type": "image/svg+xml; charset=utf-8",
+            "Cache-Control": "no-store",
+            "X-Market-Pending": "1",
+            "X-Content-Type-Options": "nosniff",
+          });
+          res.end('<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>');
+          return;
+        }
+        text(res, 502, error.message);
+      }
       return;
     }
 

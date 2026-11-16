@@ -37,7 +37,7 @@
 ```text
 shared/
   assets.manifest.json     素材清单：path / kind / sha256 / size / license / source / url / provided；
-                           字体条目另有 family / weight / style
+                           字体条目另有 family / weight / style；市场导入另有 provider / providerRef
   fonts.ts                 生成物：FONT_MANIFEST（file 相对 public，如 assets/fonts/x.otf）
   requirements.json        内容侧资源需求：字体族 / 音效类别 / BGM 情绪 / kind 数量
   audio/                   sfx.index.json、music.index.json、LICENSES.md；
@@ -135,6 +135,10 @@ node run.mjs shared validate --strict
 | `node tools/assets.mjs scan [--apply] [--prune]` | 登记/更新/移除条目 |
 | `npm run assets:fetch [-- --from <dir>]` | 按清单部署二进制 |
 | `node run.mjs sync --apply` | 注册表 + 清单 + 可选实拍 |
+
+**清单即锁定记录**：`path / size / sha256 / url / license / source`（市场导入另带 `provider / providerRef`）。`assets:fetch` 下载后按 `sha256` 校验，不符则不落盘并计入失败；`check --verify` 校验落盘文件与清单一致。
+
+复现：换机在线 → 拿到内容包 `shared/`（清单）→ `npm run assets:fetch` → `check --verify --strict`；断网 → `npm run assets:fetch -- --from <dir>` → `check --verify`，清单里的 `url` 不被访问。只有清单、无网络无副本时无法复现二进制。
 
 ## 7. 空核心与部分内容
 

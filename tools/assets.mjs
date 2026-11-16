@@ -498,6 +498,10 @@ function upsertEntry(relative, data, options) {
       : {}),
     ...(options.style ? { style: options.style } : {}),
   };
+  const providerMeta = {
+    ...(options.provider ? { provider: options.provider } : {}),
+    ...(options.ref ? { providerRef: options.ref } : {}),
+  };
   if (existing) {
     const next = { ...existing, ...info, provided: true };
     if (options.kind) next.kind = options.kind;
@@ -505,6 +509,7 @@ function upsertEntry(relative, data, options) {
     if (options.source) next.source = options.source;
     if (options.url) next.url = options.url;
     Object.assign(next, fontMeta);
+    Object.assign(next, providerMeta);
     Object.assign(existing, next);
     return "updated";
   }
@@ -517,6 +522,7 @@ function upsertEntry(relative, data, options) {
     source: options.source ?? "user",
     provided: true,
     ...fontMeta,
+    ...providerMeta,
   });
   return "added";
 }
@@ -531,6 +537,8 @@ const ADD_VALUE_FLAGS = new Set([
   "family",
   "weight",
   "style",
+  "provider",
+  "ref",
   "file",
 ]);
 
@@ -550,6 +558,25 @@ function addTargets() {
   return targets;
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** 下载重试：429 与 5xx 退避重试，其余状态原样返回给调用方报错。 */
+async function fetchWithRetry(url, attempts = 3) {
+  let lastError = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return response;
+      lastError = new Error(`HTTP ${response.status}`);
+      if (response.status !== 429 && response.status < 500) return response;
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < attempts - 1) await sleep(800 * (attempt + 1));
+  }
+  throw lastError;
+}
+
 async function add() {
   const targets = addTargets();
   if (!targets.length && value("file")) targets.push(value("file"));
@@ -567,6 +594,8 @@ async function add() {
   const family = value("family");
   const weight = value("weight");
   const style = value("style");
+  const providerId = value("provider");
+  const providerRef = value("ref");
   const files = [];
   let failed = 0;
 
@@ -574,7 +603,7 @@ async function add() {
     if (/^https?:\/\//i.test(target)) {
       let response;
       try {
-        response = await fetch(target);
+        response = await fetchWithRetry(target);
       } catch (error) {
         console.error(`下载失败 ${target}：${error.message}`);
         failed += 1;
@@ -643,6 +672,8 @@ async function add() {
       family,
       weight,
       style,
+      provider: providerId,
+      ref: providerRef,
     });
     if (result === "added") added += 1;
     else updated += 1;
@@ -862,12 +893,22 @@ async function download(entry) {
   const file = path.join(primaryRoot, ...entry.path.split("/"));
   mkdirSync(path.dirname(file), { recursive: true });
   console.log(`下载 ${entry.path} <- ${entry.url}`);
-  const response = await fetch(entry.url, { redirect: "follow" });
+  const response = await fetchWithRetry(entry.url);
   if (!response.ok) {
     console.error(`下载失败 ${entry.path}：HTTP ${response.status}`);
     return false;
   }
-  writeFileSync(file, Buffer.from(await response.arrayBuffer()));
+  const data = Buffer.from(await response.arrayBuffer());
+  if (entry.sha256) {
+    const digest = sha256(data);
+    if (digest !== entry.sha256) {
+      console.error(
+        `校验失败 ${entry.path}：sha256 不符（清单 ${entry.sha256.slice(0, 12)}…，下载 ${digest.slice(0, 12)}…）`,
+      );
+      return false;
+    }
+  }
+  writeFileSync(file, data);
   return true;
 }
 

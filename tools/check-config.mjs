@@ -8,7 +8,7 @@ import { scanProjects } from "../modules/lib/projects.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG = path.join(ROOT, "config", "pipeline.json");
 const SCHEMA = path.join(ROOT, "config", "pipeline.schema.json");
-const LABELS = path.join(ROOT, "config", "labels.json");
+const WORKBENCH = path.join(ROOT, "config", "workbench.json");
 
 const fail = (message) => {
   throw new Error(`[config] ${message}`);
@@ -121,14 +121,15 @@ function checkProjectManifests() {
 }
 
 function checkLabels() {
-  if (!existsSync(LABELS)) fail(`缺少 ${path.relative(ROOT, LABELS)}`);
+  if (!existsSync(WORKBENCH)) fail(`缺少 ${path.relative(ROOT, WORKBENCH)}`);
   let data;
   try {
-    data = JSON.parse(readFileSync(LABELS, "utf8"));
+    data = JSON.parse(readFileSync(WORKBENCH, "utf8"));
   } catch (error) {
-    fail(`labels.json 无法解析：${error.message}`);
+    fail(`workbench.json 无法解析：${error.message}`);
   }
-  if (!isObject(data.groups)) fail("labels.groups 必须是对象");
+  if (!isObject(data.stages)) fail("workbench.stages 必须是对象");
+  if (!isObject(data.labels)) fail("workbench.labels 必须是对象");
   const required = [
     "category",
     "layer",
@@ -145,16 +146,16 @@ function checkLabels() {
     "qualityMetric",
   ];
   for (const group of required) {
-    if (!data.groups[group]) fail(`labels.groups.${group} 缺失`);
+    if (!data.labels[group]) fail(`workbench.labels.${group} 缺失`);
   }
-  for (const [group, entries] of Object.entries(data.groups)) {
-    if (!isObject(entries)) fail(`labels.${group} 必须是对象`);
+  for (const [group, entries] of Object.entries(data.labels)) {
+    if (!isObject(entries)) fail(`workbench.labels.${group} 必须是对象`);
     for (const [key, entry] of Object.entries(entries)) {
       if (!isObject(entry) || typeof entry.label !== "string" || !entry.label.trim()) {
-        fail(`labels.${group}.${key} 缺少 label`);
+        fail(`workbench.labels.${group}.${key} 缺少 label`);
       }
       if (entry.hint !== undefined && typeof entry.hint !== "string") {
-        fail(`labels.${group}.${key}.hint 必须是字符串`);
+        fail(`workbench.labels.${group}.${key}.hint 必须是字符串`);
       }
     }
   }

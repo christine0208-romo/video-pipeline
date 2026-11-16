@@ -38,21 +38,22 @@
 
 后续可加：拖拽导入、音频波形、批量编辑、资源使用位置统计。
 
-## 2. Phase 2 · 目录契约与只读 provider（进行中）
+## 2. Phase 2 · 目录契约与只读 provider（已完成，v0.0.3）
 
 - [x] catalog 条目契约（`id/kind/name/prefix/collection/license/source/url/preview/fileName`）。
 - [x] Iconify 只读 provider：搜索、图标集许可元数据、24h 缓存。
 - [x] 市场并入资源页：本地资源 / 在线市场两种模式。
 - [x] 来源管理：默认值在 `config/pipeline.json` 的 `market.defaults`、来源在 `config/local.json`；`market.mjs providers list/add/set/remove`，工作台可添加/编辑/停用/移除。
-- [x] 无搜索时展示推荐图标集与快捷搜索词；推荐与搜索词全部来自 provider 配置。
+- [x] 市场入口：类别目录（类别与数量来自来源自身目录）+ 搜索；推荐集与快捷搜索词已移除。
 - [x] 推荐图标集可进入完整集合：集合内搜索、分页加载。
 - [x] 资源移除：`assets remove` 自动取消清单/音频索引登记，同步 `fonts.ts` 与 CREDITS；工作台提供删除文件/仅取消登记。
 - [x] 样张只打开预览；导入显式确认，显示目标路径与已导入状态，重复导入按清单路径去重。
 - [x] 一键导入：服务端重新解析 `prefix:name`，复用 `assets add`，写入清单与 CREDITS。
-- [ ] Google Fonts provider。
-- [ ] lock/版本固定策略（当前以清单的 `url + sha256 + source` 记录）。
+- [x] Google Fonts provider：目录/搜索/许可以 `catalogUrl` 为配置项（默认 Fontsource 镜像），字体文件按字族+字重从 CSS2 解析 `woff2`；导入复用 `assets add`，自动更新清单、`fonts.ts`、CREDITS；推荐模板在 `config/local.example.json`；资源页以类别目录为主入口，搜索结果可返回目录。
+- [x] lock/版本固定：清单即锁（`path/size/sha256/url/license/source` + `provider/providerRef`），`assets fetch` 下载后校验哈希；不另建 lock 文件。
+- [x] 市场缓存：TTL 对齐上游（Iconify 7 天）+ 304 条件检查 + 集合详情缓存 + 图标预览本地缓存与限流队列，失败沿用旧缓存并择机重试。
 
-当前改动与 Phase 1 同在工作树（分支 `feat/resource-manager`、版本 `0.0.2`）；提交时按版本规范拆分，Phase 2 对应 `0.0.3`。
+当前改动在分支 `feat/resource-market`，版本 `0.0.3`；Phase 2 完成。
 
 验收：资源页切换本地/市场 → 来源增删改 → 推荐或搜索 → 导入 → `shared validate --strict` 通过；断网时本地资源管理不受影响。
 

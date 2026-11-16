@@ -32,6 +32,7 @@
 
 - 先查素材库 `assets/`（`assets.roots` 可配多根）；需要镜头语汇时查 `docs/reference/shots`（仅参考，不参与运行时）；没有再新增。
 - 素材二进制不入库：新增文件后运行 `node tools/assets.mjs scan --apply` 登记到 `shared/assets.manifest.json`，再补 license 并更新 `shared/CREDITS.md`；用户可用 `npm run assets:fetch -- --from <dir>` 部署。
+- 清单里的 `sha256` 是锁定记录：`assets fetch` 下载后按它校验，不符即失败；不要改哈希绕过校验，也不要为同一路径写入不同内容。
 - 新增图标/字体/地图/音乐/纹理：
   - 放进素材根（默认 `assets/`，或 `assets.roots` 里的任一根）；
   - `assets scan --apply` 登记（`license` / `source` 可选，需要署名时再补）；

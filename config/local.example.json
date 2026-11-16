@@ -14,6 +14,27 @@
     "ffprobe": "ffprobe"
   },
   "market": {
-    "providers": {}
+    "providers": {
+      "iconify": {
+        "type": "iconify",
+        "label": "Iconify",
+        "kind": "icon",
+        "baseUrl": "https://api.iconify.design",
+        "cacheHours": 168,
+        "enabled": true,
+        "searchPlaceholder": "搜索图标，例如 arrow right"
+      },
+      "google-fonts": {
+        "type": "google-fonts",
+        "label": "Google Fonts",
+        "kind": "font",
+        "baseUrl": "https://fonts.googleapis.com",
+        "catalogUrl": "https://api.fontsource.org/v1/fonts",
+        "subset": "latin",
+        "cacheHours": 24,
+        "enabled": true,
+        "searchPlaceholder": "搜索字体，例如 Inter"
+      }
+    }
   }
 }

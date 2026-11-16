@@ -170,10 +170,9 @@ node run.mjs check                 # 已有 EDL 的去重/时长校验
 |---|---|---|
 | `config/pipeline.json` | 可移植默认值：`spec`、`footage.roots`、`assets.roots`、`shared.root`、`creative.root`、`mix` | 是 |
 | `config/local.json` | 本机覆盖：素材绝对路径、ffmpeg 路径 | 否 |
-| `config/parameters.json` | 工作台任务表单的字段 | 是 |
-| `config/labels.json` | 工作台枚举标签与悬浮说明 | 是 |
+| `config/workbench.json` | 工作台界面元数据：任务表单（`stages`）与枚举标签/提示（`labels`） | 是 |
 
-资源市场默认值在 `config/pipeline.json` 的 `market.defaults`；具体来源写在 `config/local.json` 的 `market.providers`（不提交）。
+资源市场只把中性默认值（缓存、条数）放在 `config/pipeline.json` 的 `market.defaults`；推荐来源模板在 `config/local.example.json`，具体来源写进 `config/local.json` 的 `market.providers`（不提交）。
 
 不要为了本机路径改 `pipeline.json`；写进 `config/local.json`（参考 `local.example.json`）。
 

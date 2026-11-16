@@ -42,10 +42,12 @@ const state = {
   market: {
     providers: null,
     defaults: null,
+    templates: null,
     providerId: null,
     result: null,
-    featured: null,
+    catalog: null,
     collection: null,
+    browse: null,
     query: "",
     error: null,
   },
@@ -367,6 +369,7 @@ async function loadMarketProviders() {
   const data = await api("/api/market/providers");
   state.market.providers = data.providers ?? {};
   state.market.defaults = data.defaults ?? {};
+  state.market.templates = data.templates ?? {};
   if (!state.market.providerId) {
     state.market.providerId =
       Object.keys(state.market.providers).find(
@@ -587,9 +590,11 @@ function bindResourceMode() {
     button.onclick = () => {
       state.resourceMode = button.dataset.resourceMode;
       state.market.result = null;
-      state.market.featured = null;
+      state.market.catalog = null;
       state.market.collection = null;
+      state.market.browse = null;
       route();
+      scrollMainTop();
     };
   }
 }
@@ -597,12 +602,12 @@ function bindResourceMode() {
 function marketSourcesHtml(providers) {
   const list = Object.entries(providers);
   if (!list.length) {
-    return `<div class="empty"><strong>还没有市场来源</strong>点击“添加来源”添加一个 Iconify 兼容源。</div>`;
+    return `<div class="empty"><strong>还没有市场来源</strong>点击“添加来源”，从模板（Iconify / Google Fonts）开始，也可以不用在线市场。</div>`;
   }
   return `<details class="panel market-sources-panel">
     <summary>市场来源 <span class="meta">${list.length} 个 · ${esc(list.map(([, provider]) => provider.label ?? "—").join("、"))}</span></summary>
     <div class="table-wrap" id="marketSources"><table class="data market-source-table">
-      <thead><tr><th>名称</th><th>类型</th><th>baseUrl</th><th>缓存</th><th>推荐</th><th>状态</th><th>操作</th></tr></thead>
+      <thead><tr><th>名称</th><th>类型</th><th>baseUrl</th><th>目录</th><th>缓存</th><th>状态</th><th>操作</th></tr></thead>
       <tbody>
         ${list
           .map(([id, provider]) => {
@@ -611,8 +616,8 @@ function marketSourcesHtml(providers) {
               <td><strong>${esc(provider.label ?? id)}</strong><div class="faint mono">${esc(id)}</div></td>
               <td>${esc(provider.type ?? "—")}</td>
               <td class="mono">${esc(provider.baseUrl ?? "—")}</td>
+              <td class="mono">${esc(provider.catalogUrl ?? "源自带")}</td>
               <td>${esc(provider.cacheHours ?? "—")}h</td>
-              <td>${esc((provider.featured ?? []).join(", ") || "—")}</td>
               <td><span class="badge ${enabled ? "ok" : "warn"}">${enabled ? "启用" : "停用"}</span></td>
               <td>
                 <button class="btn" data-provider-toggle="${esc(id)}">${enabled ? "停用" : "启用"}</button>
@@ -627,23 +632,148 @@ function marketSourcesHtml(providers) {
   </details>`;
 }
 
-function importedIconPath(entry) {
-  return `icons/${entry.fileName}`;
+function importedEntryPath(entry) {
+  const dir = entry.dir ?? (entry.kind === "font" ? "fonts" : "icons");
+  return `${dir}/${entry.fileName}`;
 }
 
-function isIconImported(entry) {
+function isMarketEntryImported(entry) {
   return (state.resources?.entries ?? []).some(
-    (item) => item.path === importedIconPath(entry),
+    (item) => item.path === importedEntryPath(entry),
   );
 }
 
-function marketCardHtml(entry) {
-  const imported = isIconImported(entry);
+function fontFamilyStyle(family) {
+  return `font-family:'${String(family).replace(/'/g, "")}',sans-serif`;
+}
+
+/** 图标预览走本机缓存，首次由服务端按集合批量拉取。 */
+function marketPreviewSrc(entry, siblings = null) {
+  if (entry?.kind !== "font" && entry?.prefix && entry?.name && entry?.provider) {
+    const params = new URLSearchParams({
+      provider: entry.provider,
+      prefix: entry.prefix,
+      name: entry.name,
+    });
+    if (siblings?.length) params.set("names", siblings.slice(0, 12).join(","));
+    return `/media/market/icon?${params.toString()}`;
+  }
+  return entry?.preview ?? "";
+}
+
+let marketImageObserver = null;
+
+function loadMarketImage(img) {
+  const src = img.dataset.src;
+  if (!src) return;
+  img.removeAttribute("data-src");
+  img.dataset.attempt = "0";
+  const delays = [2000, 6000, 15000];
+  const retry = () => {
+    const attempt = Number(img.dataset.attempt ?? "0");
+    if (attempt >= delays.length) {
+      img.classList.add("img-failed");
+      img.removeAttribute("src");
+      return;
+    }
+    img.dataset.attempt = String(attempt + 1);
+    setTimeout(
+      () => {
+        img.src = `${src}&retry=${Date.now()}`;
+      },
+      delays[attempt],
+    );
+  };
+  img.addEventListener("error", retry);
+  img.addEventListener("load", () => {
+    if (img.naturalWidth <= 1) retry();
+  });
+  img.src = src;
+}
+
+/** 图标缩略图进入视口附近才请求，避免一页几百个并发。 */
+function observeMarketImages() {
+  const nodes = document.querySelectorAll("img[data-src]");
+  if (!nodes.length) return;
+  if (!("IntersectionObserver" in window)) {
+    for (const img of nodes) loadMarketImage(img);
+    return;
+  }
+  marketImageObserver ??= new IntersectionObserver(
+    (entries, observer) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        observer.unobserve(entry.target);
+        loadMarketImage(entry.target);
+      }
+    },
+    { rootMargin: "300px" },
+  );
+  for (const img of nodes) marketImageObserver.observe(img);
+}
+
+const loadedFontLinks = new Set();
+let fontObserver = null;
+
+function loadFontLink(url) {
+  if (!url || loadedFontLinks.has(url)) return;
+  loadedFontLinks.add(url);
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = url;
+  document.head.appendChild(link);
+}
+
+/** 字体样张滚到视口附近才拉 CSS，避免一页 100+ 个请求。 */
+function observeFontSamples() {
+  const nodes = document.querySelectorAll("[data-font-css]");
+  if (!nodes.length) return;
+  if (!("IntersectionObserver" in window)) {
+    for (const node of nodes) {
+      loadFontLink(node.dataset.fontCss);
+      node.removeAttribute("data-font-css");
+    }
+    return;
+  }
+  fontObserver ??= new IntersectionObserver(
+    (entries, observer) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const node = entry.target;
+        observer.unobserve(node);
+        loadFontLink(node.dataset.fontCss);
+        node.removeAttribute("data-font-css");
+      }
+    },
+    { rootMargin: "300px" },
+  );
+  for (const node of nodes) fontObserver.observe(node);
+}
+
+function marketCardHtml(entry, { variants = false } = {}) {
+  const imported = isMarketEntryImported(entry);
+  if (entry.kind === "font") {
+    const variant = `${entry.weight}${entry.style === "italic" ? " 斜体" : ""}`;
+    return `
+    <article class="asset-card market-card">
+      <div class="asset-thumb font-thumb">
+        <button class="market-preview" data-market-preview="${esc(entry.id)}" data-provider-id="${esc(entry.provider)}" title="预览 ${esc(entry.id)}">
+          <span class="font-sample" style="${fontFamilyStyle(entry.family)}" data-font-css="${esc(entry.preview)}">Aa</span>
+        </button>
+      </div>
+      <div class="asset-body">
+        <div class="asset-title">${esc(entry.family)}</div>
+        <div class="asset-sub"><span>${esc(variant)}</span><span>${esc(entry.license)}</span></div>
+        <button class="btn ${imported ? "" : "primary"}" data-import-icon="${esc(entry.id)}" data-provider-id="${esc(entry.provider)}" ${imported ? "disabled" : ""}>${imported ? "已导入" : "导入"}</button>
+        ${variants ? `<button class="btn" data-market-collection="${esc(entry.familyId)}" data-provider-id="${esc(entry.provider)}">全部字重</button>` : ""}
+      </div>
+    </article>`;
+  }
   return `
     <article class="asset-card market-card">
       <div class="asset-thumb">
         <button class="market-preview" data-market-preview="${esc(entry.id)}" data-provider-id="${esc(entry.provider)}" title="预览 ${esc(entry.id)}">
-          <img src="${esc(entry.preview)}" alt="" loading="lazy" />
+          <img data-src="${esc(marketPreviewSrc(entry))}" alt="" />
         </button>
       </div>
       <div class="asset-body">
@@ -657,66 +787,248 @@ function marketCardHtml(entry) {
 function renderMarketResults() {
   const result = state.market.result;
   if (!result) return "";
+  const fonts = result.entries?.[0]?.kind === "font";
   if (!result.entries?.length) {
-    return `<div class="empty"><strong>没有匹配的图标</strong>换个关键词试试。</div>`;
+    return `<div class="panel">
+      <div class="empty"><strong>没有匹配的${fonts ? "字体" : "图标"}</strong>换个关键词，或回到类别目录。</div>
+      <div class="row"><button class="btn" data-market-reset>返回目录</button></div>
+    </div>`;
   }
   return `
     <div class="row" style="justify-content:space-between">
       <strong>${result.entries.length} / ${result.total} 条</strong>
-      <span class="faint">点击图标预览；导入后写入 assets/icons/ 并登记清单</span>
+      <div class="row">
+        <span class="faint">导入后写入 assets/${fonts ? "fonts" : "icons"}/</span>
+        <button class="btn" data-market-reset>返回目录</button>
+      </div>
     </div>
     <div class="grid market-grid">
-      ${result.entries.map(marketCardHtml).join("")}
+      ${result.entries.map((entry) => marketCardHtml(entry)).join("")}
     </div>`;
 }
 
-function renderFeaturedHtml() {
-  if (state.market.error) return "";
-  const provider = state.market.providers?.[state.market.providerId];
-  const chips = provider?.suggestions ?? [];
-  const featured = state.market.featured;
+function renderCategoryPanel() {
+  const catalog = state.market.catalog;
+  if (!catalog) {
+    return state.market.error
+      ? `<div class="panel"><div class="row"><span class="badge danger">市场错误</span><span>${esc(state.market.error)}</span></div></div>`
+      : `<div class="empty"><strong>正在读取目录</strong>加载来源的类别。</div>`;
+  }
+  const fonts = catalog.kind === "font";
+  const group = fonts ? "fontCategory" : "iconCategory";
+  const unit = fonts ? "字族" : "图标集";
+  if (!catalog.categories?.length) {
+    return `<div class="panel"><div class="empty"><strong>该来源没有类别目录</strong>直接输入关键词搜索，或换一个来源。</div></div>`;
+  }
+  return `<div class="panel">
+    <div class="panel-head"><h2>按类别浏览</h2><span class="meta">${catalog.total} 个${unit}</span><button class="btn" data-market-browse="">浏览全部</button></div>
+    <div class="row" style="flex-wrap:wrap">
+      ${catalog.categories
+        .map(
+          (category) => `<button class="btn" data-market-browse="${esc(category.id)}">${esc(labelOf(group, category.id))} <span class="faint">${category.count}</span></button>`,
+        )
+        .join("")}
+    </div>
+    <p class="faint">${fonts ? "从类别进入目录；展开字族可以选任意字重与斜体。" : "从类别进入目录；点开图标集可以浏览全部图标。"}</p>
+  </div>`;
+}
+
+function collectionCardHtml(entry) {
+  return `<article class="asset-card market-collection-card">
+    <div class="asset-body">
+      <div class="asset-title">${esc(entry.name)}</div>
+      <div class="asset-sub"><span>${esc(entry.license)}</span><span>${entry.total ?? 0} 个图标</span></div>
+      <div class="market-samples">
+        ${(entry.samples ?? [])
+          .map(
+            (sample) => `<button class="market-sample" data-market-preview="${esc(sample.id)}" data-provider-id="${esc(entry.provider)}" title="预览 ${esc(sample.id)}"><img data-src="${esc(marketPreviewSrc(sample, (entry.samples ?? []).map((item) => item.name)))}" alt="" /></button>`,
+          )
+          .join("")}
+      </div>
+      <button class="btn" data-market-collection="${esc(entry.prefix)}" data-provider-id="${esc(entry.provider)}">浏览 ${entry.total ?? 0} 个图标</button>
+    </div>
+  </article>`;
+}
+
+function renderBrowseHtml() {
+  const browse = state.market.browse;
+  if (!browse) return "";
+  const sets = browse.kind !== "font";
+  const group = sets ? "iconCategory" : "fontCategory";
+  if (browse.loading && !browse.entries.length) {
+    return `<div class="empty"><strong>加载${sets ? "图标集" : "字体"}目录</strong>正在读取${esc(browse.category ? labelOf(group, browse.category) : "全部")}。</div>`;
+  }
+  const heading = browse.category
+    ? labelOf(group, browse.category)
+    : sets
+      ? "全部图标集"
+      : "全部字体";
+  const unit = sets ? "个图标集" : "个字族";
   return `
-    ${
-      chips.length
-        ? `<div class="row" style="flex-wrap:wrap"><span class="faint">试试：</span>${chips.map((query) => `<button class="btn" data-market-query="${esc(query)}">${esc(query)}</button>`).join("")}</div>`
-        : ""
-    }
-    <h2 class="section-title">推荐图标集</h2>
-    ${
-      featured
-        ? `<div class="grid market-collections">${featured.collections
-            .map(
-              (collection) => `
-            <div class="panel market-collection">
-              <div class="panel-head"><h2>${esc(collection.name)}</h2><span class="meta">${esc(collection.license)} · ${collection.total} 个</span></div>
-              <div class="market-samples">
-                ${collection.samples
-                  .map(
-                    (entry) => `<button class="market-sample" data-market-preview="${esc(entry.id)}" data-provider-id="${esc(entry.provider)}" title="预览 ${esc(entry.id)}"><img src="${esc(entry.preview)}" alt="" loading="lazy" /></button>`,
-                  )
-                  .join("")}
-              </div>
-              <div class="row" style="margin-top:10px">
-                <button class="btn" data-market-collection="${esc(collection.prefix)}" data-provider-id="${esc(featured.provider)}">浏览全部 ${collection.total}</button>
-              </div>
-            </div>`,
-            )
-            .join("")}</div>`
-        : `<div class="empty"><strong>推荐加载中</strong>正在读取图标集元数据。</div>`
-    }`;
+    <div class="panel">
+      <div class="panel-head">
+        <h2>${esc(heading)}</h2>
+        <span class="meta">${browse.total} ${unit}</span>
+        <button class="btn" data-market-browse-back>返回市场</button>
+      </div>
+      <div class="toolbar">
+        <input class="field search" id="browseQuery" placeholder="在目录中筛选${sets ? "图标集" : "字族"}" value="${esc(browse.query)}" />
+        <button class="btn" id="browseSearch">筛选</button>
+        <span class="faint">已显示 ${browse.entries.length}/${browse.total}</span>
+      </div>
+      <div class="row" style="flex-wrap:wrap">
+        <button class="btn ${browse.category ? "" : "primary"}" data-market-category="">全部</button>
+        ${(browse.categories ?? [])
+          .map(
+            (category) => `<button class="btn ${browse.category === category.id ? "primary" : ""}" data-market-category="${esc(category.id)}">${esc(labelOf(group, category.id))} <span class="faint">${category.count}</span></button>`,
+          )
+          .join("")}
+      </div>
+      ${browse.error ? `<div class="row"><span class="badge danger">加载失败</span><span>${esc(browse.error)}</span></div>` : ""}
+      ${
+        browse.entries.length
+          ? `<div class="grid market-grid">${browse.entries
+              .map((entry) => (sets ? collectionCardHtml(entry) : marketCardHtml(entry, { variants: true })))
+              .join("")}</div>`
+          : `<div class="empty"><strong>没有匹配的${sets ? "图标集" : "字族"}</strong>换个类别或关键词。</div>`
+      }
+      ${
+        browse.entries.length < browse.total
+          ? `<div class="row"><button class="btn" id="browseMore">加载更多</button></div>`
+          : ""
+      }
+    </div>`;
+}
+
+async function loadMarketBrowse({ append = false } = {}) {
+  const browse = state.market.browse;
+  if (!browse) return;
+  const offset = append ? browse.entries.length : 0;
+  browse.loading = true;
+  browse.error = null;
+  try {
+    const data = await api(
+      `/api/market/browse?provider=${encodeURIComponent(browse.providerId)}&category=${encodeURIComponent(browse.category)}&q=${encodeURIComponent(browse.query)}&offset=${offset}&limit=${encodeURIComponent(marketLimit("collectionLimit") ?? "")}`,
+    );
+    browse.categories = data.categories ?? [];
+    browse.total = data.total;
+    browse.entries = append ? [...browse.entries, ...data.entries] : data.entries;
+  } catch (error) {
+    browse.error = error.message;
+  }
+  browse.loading = false;
+}
+
+async function openMarketBrowse(category = "", query = "") {
+  const provider = state.market.providers?.[state.market.providerId];
+  state.market.browse = {
+    providerId: state.market.providerId,
+    kind: provider?.kind === "font" ? "font" : "icon",
+    category,
+    query,
+    total: 0,
+    entries: [],
+    categories: [],
+    loading: true,
+    error: null,
+  };
+  await loadMarketBrowse();
+  route();
+  scrollMainTop();
+}
+
+function scrollMainTop() {
+  const main = document.querySelector("main");
+  if (main) main.scrollTop = 0;
+}
+
+/** 只刷新结果区并重新绑定；加载更多时保留滚动位置。 */
+function refineMarketList(kind, providerId, { keepScroll = true } = {}) {
+  const main = document.querySelector("main");
+  const top = main?.scrollTop ?? 0;
+  const container = $("#marketResults");
+  if (!container) return;
+  container.innerHTML = kind === "browse" ? renderBrowseHtml() : renderCollectionHtml();
+  observeFontSamples();
+  observeMarketImages();
+  bindMarketResults(providerId);
+  if (kind === "browse") bindBrowseControls(providerId);
+  else bindCollectionControls(providerId);
+  if (!main) return;
+  if (keepScroll) main.scrollTop = top;
+  else container.scrollIntoView({ block: "start" });
+}
+
+function bindBrowseControls(providerId) {
+  const runFilter = async () => {
+    const input = $("#browseQuery");
+    state.market.browse.query = input ? input.value.trim() : "";
+    await loadMarketBrowse();
+    refineMarketList("browse", providerId, { keepScroll: false });
+  };
+  const filterButton = $("#browseSearch");
+  if (filterButton) filterButton.onclick = runFilter;
+  const filterInput = $("#browseQuery");
+  if (filterInput) {
+    filterInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") runFilter();
+    });
+  }
+  const more = $("#browseMore");
+  if (more) {
+    more.onclick = async () => {
+      more.disabled = true;
+      await loadMarketBrowse({ append: true });
+      refineMarketList("browse", providerId, { keepScroll: true });
+    };
+  }
+}
+
+function bindCollectionControls(providerId) {
+  const back = document.querySelector("[data-market-back]");
+  if (back) {
+    back.onclick = () => {
+      state.market.collection = null;
+      route();
+      scrollMainTop();
+    };
+  }
+  const runSearch = async () => {
+    const input = $("#collectionQuery");
+    state.market.collection.query = input ? input.value.trim() : "";
+    await loadMarketCollection();
+    refineMarketList("collection", providerId, { keepScroll: false });
+  };
+  const searchButton = $("#collectionSearch");
+  if (searchButton) searchButton.onclick = runSearch;
+  const queryInput = $("#collectionQuery");
+  if (queryInput) {
+    queryInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") runSearch();
+    });
+  }
+  const more = $("#collectionMore");
+  if (more) {
+    more.onclick = async () => {
+      more.disabled = true;
+      await loadMarketCollection({ append: true });
+      refineMarketList("collection", providerId, { keepScroll: true });
+    };
+  }
 }
 
 function renderCollectionHtml() {
   const collection = state.market.collection;
   if (!collection) return "";
+  const fonts = collection.entries?.[0]?.kind === "font";
   if (collection.loading && !collection.entries.length) {
-    return `<div class="empty"><strong>加载图标集</strong>正在读取 ${esc(collection.prefix)}。</div>`;
+    return `<div class="empty"><strong>加载${fonts ? "字体" : "图标集"}</strong>正在读取 ${esc(collection.prefix)}。</div>`;
   }
   return `
     <div class="panel">
       <div class="panel-head">
         <h2>${esc(collection.name || collection.prefix)}</h2>
-        <span class="meta">${esc(collection.license || "—")} · ${collection.total} 个图标</span>
+        <span class="meta">${esc(collection.license || "—")} · ${collection.total} 个${fonts ? "变体" : "图标"}</span>
         <button class="btn" data-market-back>返回市场</button>
       </div>
       <div class="toolbar">
@@ -725,7 +1037,7 @@ function renderCollectionHtml() {
         <span class="faint">已显示 ${collection.entries.length}/${collection.total}</span>
       </div>
       ${collection.error ? `<div class="row"><span class="badge danger">加载失败</span><span>${esc(collection.error)}</span></div>` : ""}
-      ${collection.entries.length ? `<div class="grid market-grid">${collection.entries.map(marketCardHtml).join("")}</div>` : `<div class="empty"><strong>没有匹配的图标</strong>换个关键词。</div>`}
+      ${collection.entries.length ? `<div class="grid market-grid">${collection.entries.map((entry) => marketCardHtml(entry)).join("")}</div>` : `<div class="empty"><strong>没有匹配的${fonts ? "变体" : "图标"}</strong>换个关键词。</div>`}
       ${
         collection.entries.length < collection.total
           ? `<div class="row"><button class="btn" id="collectionMore">加载更多</button></div>`
@@ -775,25 +1087,49 @@ async function openMarketCollection(prefix, providerId) {
   };
   await loadMarketCollection();
   route();
+  scrollMainTop();
 }
 
 function bindMarketResults(providerId) {
   const container = $("#marketResults");
   if (!container) return;
   container.onclick = async (event) => {
-    const queryButton = event.target.closest("[data-market-query]");
-    if (queryButton) {
-      $("#marketQuery").value = queryButton.dataset.marketQuery;
-      const search = $("#marketSearch");
-      if (search) search.click();
-      return;
-    }
     const collectionButton = event.target.closest("[data-market-collection]");
     if (collectionButton) {
       openMarketCollection(
         collectionButton.dataset.marketCollection,
         collectionButton.dataset.providerId || providerId,
       );
+      return;
+    }
+    const browseButton = event.target.closest("[data-market-browse]");
+    if (browseButton) {
+      await openMarketBrowse(browseButton.dataset.marketBrowse ?? "", "");
+      return;
+    }
+    const browseBack = event.target.closest("[data-market-browse-back]");
+    if (browseBack) {
+      state.market.browse = null;
+      route();
+      return;
+    }
+    const categoryButton = event.target.closest("[data-market-category]");
+    if (categoryButton) {
+      const browse = state.market.browse;
+      if (!browse) return;
+      browse.category = categoryButton.dataset.marketCategory ?? "";
+      await loadMarketBrowse();
+      route();
+      scrollMainTop();
+      return;
+    }
+    const resetButton = event.target.closest("[data-market-reset]");
+    if (resetButton) {
+      state.market.query = "";
+      state.market.result = null;
+      state.market.error = null;
+      route();
+      scrollMainTop();
       return;
     }
     const previewButton = event.target.closest("[data-market-preview]");
@@ -812,8 +1148,8 @@ function bindMarketResults(providerId) {
         icon: importButton.dataset.importIcon,
         provider: importButton.dataset.providerId || providerId,
       });
-      toast(`已提交导入 → assets/icons/${result.entry?.fileName ?? ""}`);
-      watchToolJob(result.job, "导入图标");
+      toast(`已提交导入 → assets/${result.entry?.dir ?? "icons"}/${result.entry?.fileName ?? ""}`);
+      watchToolJob(result.job, result.entry?.kind === "font" ? "导入字体" : "导入图标");
     } catch (error) {
       importButton.disabled = false;
       toast(error.message);
@@ -832,52 +1168,46 @@ async function renderResourceMarket() {
   const providerId = state.market.providerId;
   const provider = providerId ? providers[providerId] : null;
 
+  if (state.market.browse && !state.market.collection) {
+    setActions(`<button class="btn" id="resourceRefresh">刷新</button>`);
+    $("#view").innerHTML = `
+      ${resourceModeSwitch()}
+      <div id="marketResults">${renderBrowseHtml()}</div>
+    `;
+    observeFontSamples();
+    observeMarketImages();
+    bindResourceMode();
+    bindMarketResults(providerId);
+    $("#resourceRefresh").onclick = () => route();
+    bindBrowseControls(providerId);
+    return;
+  }
+
   if (state.market.collection) {
     setActions(`<button class="btn" id="resourceRefresh">刷新</button>`);
     $("#view").innerHTML = `
       ${resourceModeSwitch()}
       <div id="marketResults">${renderCollectionHtml()}</div>
     `;
+    observeFontSamples();
+    observeMarketImages();
     bindResourceMode();
     bindMarketResults(providerId);
     $("#resourceRefresh").onclick = () => route();
-    const back = document.querySelector("[data-market-back]");
-    if (back) {
-      back.onclick = () => {
-        state.market.collection = null;
-        route();
-      };
-    }
-    const runCollectionSearch = async () => {
-      const input = $("#collectionQuery");
-      state.market.collection.query = input ? input.value.trim() : "";
-      await loadMarketCollection();
-      route();
-    };
-    const searchButton = $("#collectionSearch");
-    if (searchButton) searchButton.onclick = runCollectionSearch;
-    const queryInput = $("#collectionQuery");
-    if (queryInput) {
-      queryInput.addEventListener("keydown", (event) => {
-        if (event.key === "Enter") runCollectionSearch();
-      });
-    }
-    const more = $("#collectionMore");
-    if (more) {
-      more.onclick = async () => {
-        more.disabled = true;
-        await loadMarketCollection({ append: true });
-        route();
-      };
-    }
+    bindCollectionControls(providerId);
     return;
   }
 
-  if (providerId && !state.market.result && !state.market.featured) {
+  if (providerId && !state.market.catalog) {
     try {
-      state.market.featured = await api(
-        `/api/market/featured?provider=${encodeURIComponent(providerId)}`,
+      const data = await api(
+        `/api/market/browse?provider=${encodeURIComponent(providerId)}&limit=1`,
       );
+      state.market.catalog = {
+        kind: provider?.kind === "font" ? "font" : "icon",
+        categories: data.categories ?? [],
+        total: data.total ?? 0,
+      };
     } catch (error) {
       state.market.error = error.message;
     }
@@ -897,14 +1227,16 @@ async function renderResourceMarket() {
         <select class="field" id="marketProvider">
           ${enabled.map(([id, item]) => `<option value="${esc(id)}" ${id === providerId ? "selected" : ""}>${esc(item.label ?? id)}</option>`).join("") || `<option value="">无</option>`}
         </select>
-        <input class="field search" id="marketQuery" placeholder="${esc(provider?.searchPlaceholder ?? "搜索图标")}" value="${esc(state.market.query)}" />
+        <input class="field search" id="marketQuery" placeholder="${esc(provider?.searchPlaceholder ?? "搜索素材")}" value="${esc(state.market.query)}" />
         <button class="btn primary" id="marketSearch">搜索</button>
       </div>
       <p class="faint">来源可添加、编辑、停用或移除；导入仍走 <code>assets add</code>，许可/来源写入清单。</p>
     </div>
     ${state.market.error ? `<div class="panel"><div class="row"><span class="badge danger">市场错误</span><span>${esc(state.market.error)}</span></div></div>` : ""}
-    <div id="marketResults">${state.market.query ? renderMarketResults() : renderFeaturedHtml()}</div>
+    <div id="marketResults">${state.market.query ? renderMarketResults() : renderCategoryPanel()}</div>
   `;
+  observeFontSamples();
+    observeMarketImages();
 
   bindResourceMode();
   $("#resourceRefresh").onclick = () => route();
@@ -912,10 +1244,12 @@ async function renderResourceMarket() {
   $("#marketProvider").onchange = (event) => {
     state.market.providerId = event.target.value;
     state.market.result = null;
-    state.market.featured = null;
+    state.market.catalog = null;
     state.market.collection = null;
+    state.market.browse = null;
     state.market.error = null;
     route();
+    scrollMainTop();
   };
 
   const runSearch = async () => {
@@ -974,8 +1308,9 @@ async function renderResourceMarket() {
 function resetMarketState() {
   state.market.providers = null;
   state.market.result = null;
-  state.market.featured = null;
+  state.market.catalog = null;
   state.market.collection = null;
+  state.market.browse = null;
   state.market.query = "";
   state.market.error = null;
 }
@@ -994,9 +1329,8 @@ async function submitProvider(body, message) {
 function findMarketEntry(icon, providerId) {
   const candidates = [
     ...(state.market.result?.entries ?? []),
-    ...(state.market.featured?.collections ?? []).flatMap(
-      (collection) => collection.samples ?? [],
-    ),
+    ...(state.market.browse?.entries ?? []).flatMap((entry) => entry.samples ?? []),
+    ...(state.market.collection?.entries ?? []),
   ];
   return (
     candidates.find(
@@ -1009,14 +1343,23 @@ function findMarketEntry(icon, providerId) {
 function openMarketPreview(icon, providerId) {
   const entry = findMarketEntry(icon, providerId);
   if (!entry) {
-    toast("找不到该图标条目，请重新搜索");
+    toast("找不到该条目，请重新搜索");
     return;
   }
-  const existing = isIconImported(entry);
-  const target = `assets/${importedIconPath(entry)}`;
-  openModal(`预览 · ${entry.id}`, `
+  const existing = isMarketEntryImported(entry);
+  const target = `assets/${importedEntryPath(entry)}`;
+  const font = entry.kind === "font";
+  const variant = font
+    ? `${entry.weight}${entry.style === "italic" ? " 斜体" : ""}`
+    : null;
+  if (font) loadFontLink(entry.preview);
+  openModal(`预览 · ${font ? entry.family : entry.id}`, `
     <div class="asset-detail market-preview-detail">
-      <div class="preview-box market-preview-box"><img src="${esc(entry.preview)}" alt="" /></div>
+      ${
+        font
+          ? `<div class="preview-box market-font-preview"><div class="font-preview-title" style="${fontFamilyStyle(entry.family)}">${esc(entry.family)}</div><div class="font-preview-line" style="${fontFamilyStyle(entry.family)}">字体样张 Aa 0123</div><div class="font-preview-line small" style="${fontFamilyStyle(entry.family)}">The quick brown fox jumps over the lazy dog</div></div>`
+          : `<div class="preview-box market-preview-box"><img src="${esc(marketPreviewSrc(entry))}" alt="" /></div>`
+      }
       <div>
         <div class="row">
           <span class="badge accent">${esc(entry.license)}</span>
@@ -1025,6 +1368,7 @@ function openMarketPreview(icon, providerId) {
         </div>
         <div class="kv">
           <div><div class="k">id</div><div class="v">${esc(entry.id)}</div></div>
+          ${font ? `<div><div class="k">字族 / 变体</div><div class="v">${esc(entry.family)} · ${esc(variant)}</div></div>` : ""}
           <div><div class="k">来源</div><div class="v">${esc(entry.source)}</div></div>
           <div><div class="k">作者</div><div class="v">${esc(entry.author ?? "—")}</div></div>
           <div><div class="k">许可</div><div class="v">${esc(entry.license)}${entry.licenseUrl ? ` · ${esc(entry.licenseUrl)}` : ""}</div></div>
@@ -1050,7 +1394,7 @@ function openMarketPreview(icon, providerId) {
       });
       status.textContent = `已提交导入 → ${target}`;
       toast(`导入任务已提交 → ${target}`);
-      watchToolJob(result.job, "导入图标");
+      watchToolJob(result.job, font ? "导入字体" : "导入图标");
     } catch (error) {
       button.disabled = false;
       status.textContent = "";
@@ -1059,23 +1403,71 @@ function openMarketPreview(icon, providerId) {
   };
 }
 
+function providerTypeTemplates() {
+  const types = new Map();
+  for (const template of Object.values(state.market.templates ?? {})) {
+    if (template?.type && !types.has(template.type)) types.set(template.type, template);
+  }
+  return types;
+}
+
 function openProviderEditor(id) {
   const provider = id ? state.market.providers?.[id] : null;
   const defaults = state.market.defaults ?? {};
+  const typeMap = providerTypeTemplates();
+  const types = [...typeMap.keys()];
+  const initialType = provider?.type ?? types[0] ?? "iconify";
+  const template = typeMap.get(initialType) ?? {};
+  const pick = (key) => provider?.[key] ?? template[key] ?? defaults[key] ?? "";
   openModal(id ? `编辑市场来源 · ${id}` : "添加市场来源", `
     <div class="form-grid">
       <div class="form-row"><label for="providerId">id</label><input class="field" id="providerId" value="${esc(id ?? "")}" ${id ? "disabled" : ""} placeholder="iconify-2" /></div>
-      <div class="form-row"><label for="providerType">type</label><input class="field" id="providerType" value="${esc(provider?.type ?? defaults.type ?? "")}" disabled /></div>
-      <div class="form-row"><label for="providerLabel">label</label><input class="field" id="providerLabel" value="${esc(provider?.label ?? "")}" placeholder="显示名称" /></div>
-      <div class="form-row"><label for="providerBaseUrl">baseUrl</label><input class="field" id="providerBaseUrl" value="${esc(provider?.baseUrl ?? defaults.baseUrl ?? "")}" placeholder="http(s)://..." /></div>
-      <div class="form-row"><label for="providerFeatured">featured</label><input class="field" id="providerFeatured" value="${esc((provider?.featured ?? []).join(","))}" placeholder="逗号分隔的图标集前缀" /></div>
-      <div class="form-row"><label for="providerSuggestions">suggestions</label><input class="field" id="providerSuggestions" value="${esc((provider?.suggestions ?? []).join(","))}" placeholder="逗号分隔的快捷搜索词" /></div>
-      <div class="form-row"><label for="providerSearchPlaceholder">searchPlaceholder</label><input class="field" id="providerSearchPlaceholder" value="${esc(provider?.searchPlaceholder ?? defaults.searchPlaceholder ?? "")}" /></div>
-      <div class="form-row"><label for="providerCache">cacheHours</label><input class="field" id="providerCache" type="number" min="1" value="${esc(provider?.cacheHours ?? defaults.cacheHours ?? "")}" /></div>
+      <div class="form-row"><label for="providerType">type</label>${
+        id
+          ? `<input class="field" id="providerType" value="${esc(provider.type ?? "")}" disabled />`
+          : `<select class="field" id="providerType">${
+              types.length
+                ? types
+                    .map(
+                      (type) =>
+                        `<option value="${esc(type)}" ${type === initialType ? "selected" : ""}>${esc(typeMap.get(type)?.label ?? type)}</option>`,
+                    )
+                    .join("")
+                : `<option value="iconify">iconify</option>`
+            }</select>`
+      }</div>
+      <div class="form-row"><label for="providerLabel">label</label><input class="field" id="providerLabel" value="${esc(pick("label"))}" placeholder="显示名称" /></div>
+      <div class="form-row"><label for="providerBaseUrl">baseUrl</label><input class="field" id="providerBaseUrl" value="${esc(pick("baseUrl"))}" placeholder="http(s)://..." /></div>
+      <div class="form-row font-only"><label for="providerCatalogUrl">catalogUrl</label><input class="field" id="providerCatalogUrl" value="${esc(pick("catalogUrl"))}" placeholder="字体目录地址（google-fonts 必填）" /></div>
+      <div class="form-row font-only"><label for="providerSubset">subset</label><input class="field" id="providerSubset" value="${esc(pick("subset") || "latin")}" placeholder="latin" /></div>
+      <div class="form-row"><label for="providerSearchPlaceholder">searchPlaceholder</label><input class="field" id="providerSearchPlaceholder" value="${esc(pick("searchPlaceholder"))}" /></div>
+      <div class="form-row"><label for="providerCache">cacheHours</label><input class="field" id="providerCache" type="number" min="1" value="${esc(pick("cacheHours") || 24)}" /></div>
     </div>
     <div class="row" style="margin-top:12px"><button class="btn primary" id="saveProvider">保存</button></div>
   `);
+  const typeInput = $("#providerType");
+  const toggleFontFields = () => {
+    const isFont = (typeInput?.value ?? initialType) === "google-fonts";
+    for (const row of document.querySelectorAll(".font-only")) {
+      row.style.display = isFont ? "" : "none";
+    }
+  };
+  toggleFontFields();
+  if (typeInput && !id) {
+    typeInput.onchange = () => {
+      const next = typeMap.get(typeInput.value) ?? {};
+      $("#providerId").value = next.id ?? "";
+      $("#providerLabel").value = next.label ?? "";
+      $("#providerBaseUrl").value = next.baseUrl ?? "";
+      $("#providerCatalogUrl").value = next.catalogUrl ?? "";
+      $("#providerSubset").value = next.subset ?? "latin";
+      $("#providerSearchPlaceholder").value = next.searchPlaceholder ?? "";
+      $("#providerCache").value = next.cacheHours ?? 24;
+      toggleFontFields();
+    };
+  }
   $("#saveProvider").onclick = () => {
+    const type = typeInput?.value.trim() || "iconify";
     const nextId = id ?? $("#providerId").value.trim();
     if (!nextId) {
       toast("请填写市场源 id");
@@ -1084,14 +1476,16 @@ function openProviderEditor(id) {
     const body = {
       action: id ? "set" : "add",
       id: nextId,
-      type: $("#providerType").value.trim(),
+      type,
       label: $("#providerLabel").value.trim() || nextId,
       baseUrl: $("#providerBaseUrl").value.trim(),
-      featured: $("#providerFeatured").value.trim(),
-      suggestions: $("#providerSuggestions").value.trim(),
       searchPlaceholder: $("#providerSearchPlaceholder").value.trim(),
       cacheHours: Number($("#providerCache").value),
     };
+    if (type === "google-fonts") {
+      body.catalogUrl = $("#providerCatalogUrl").value.trim();
+      body.subset = $("#providerSubset").value.trim() || "latin";
+    }
     closeModal();
     submitProvider(body, id ? "市场来源已更新" : "市场来源已添加");
   };
@@ -3493,6 +3887,20 @@ function setupHints() {
   window.addEventListener("scroll", hide, true);
 }
 
+function setupBackToTop() {
+  const main = document.querySelector("main");
+  const button = $("#backToTop");
+  if (!main || !button) return;
+  main.addEventListener(
+    "scroll",
+    () => {
+      button.hidden = main.scrollTop < 400;
+    },
+    { passive: true },
+  );
+  button.onclick = () => main.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 async function boot() {
   window.addEventListener("hashchange", route);
   window.addEventListener("beforeunload", releaseVideos);
@@ -3507,6 +3915,7 @@ async function boot() {
   });
   setupHints();
   initPreviewMode();
+  setupBackToTop();
 
   try {
     await Promise.all([
