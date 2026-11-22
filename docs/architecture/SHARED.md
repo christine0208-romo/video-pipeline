@@ -20,6 +20,7 @@
 |---|---|---|---|
 | `shared/assets.manifest.json` | 否 | 生成、哈希、比对、校验；字体条目自动补 `family/weight` | 按需补 `license` / `source` / `url`（可选） |
 | `shared/fonts.ts` | 否 | **从清单字体条目生成**（`shared fonts --write`、`add`、`scan --apply` 自动触发） | 不手改；family 不对时用 `assets font set` |
+| `shared/requirements.json` | 否 | 模板、`shared requirements` 校验 | 声明需要的字体族、音效类别、BGM 情绪、kind 数量（内容侧，允许手改） |
 | `shared/audio/{sfx,music}.index.json` | 否 | 结构、id/文件校验、`file` 解析 | 用 `audio scan/set` 维护条目（不建议手改） |
 | `shared/presets/design.ts`、`canvas.ts` | 否 | 模板 | 设计令牌、平台避让（如 TikTok） |
 | `shared/code/*` | 否 | 目录说明 | 公共代码（types / palette / parts…） |
@@ -36,8 +37,9 @@
 ```text
 shared/
   assets.manifest.json     素材清单：path / kind / sha256 / size / license / source / url / provided；
-                           字体条目另有 family / weight / style
+                           字体条目另有 family / weight / style；市场导入另有 provider / providerRef
   fonts.ts                 生成物：FONT_MANIFEST（file 相对 public，如 assets/fonts/x.otf）
+  requirements.json        内容侧资源需求：字体族 / 音效类别 / BGM 情绪 / kind 数量
   audio/                   sfx.index.json、music.index.json、LICENSES.md；
                            条目 file 为相对素材根路径（music/x.mp3、custom/intro.wav）
   presets/                 design.ts（VIDEO/SAFE/COLORS/TYPE/GRID/MOTION）、canvas.ts
@@ -51,12 +53,29 @@ assets/                   素材根（可多根）
   其他目录按扩展名推断（`add --keep` 时保留原结构）
 ```
 
+### 资源需求（requirements.json）
+
+```json
+{
+  "version": 1,
+  "fonts": [{ "family": "Noto Sans SC", "weights": ["400", "700"] }],
+  "audio": { "sfx": ["impact", "whoosh", "tap"], "musicMoods": ["calm"] },
+  "kinds": { "icon": 10 }
+}
+```
+
+- `fonts` 支持 `{ family, weight? }` 或字符串；按清单字体条目的 `family/weight` 比对。
+- `audio.sfx` 比对音效索引的 `category`；`audio.musicMoods` 比对 BGM 的 `mood`。
+- `kinds` 按清单条目数量比对（`fonts`/`icons` 等复数写法会归一）。
+- 文件可选；未声明时命令返回 `declared=false`，不阻断。
+
 ## 4. 标准流程
 
 ```bash
 node run.mjs shared init          # 生成 shared/ 结构与素材目录（空清单）
 node tools/assets.mjs add <文件|目录|URL> [更多目标...] --license <许可> --source <来源>   # 字体/音频自动维护索引
 node run.mjs shared fonts --write # 从清单字体条目重写 shared/fonts.ts（add/scan 已自动调用）
+node run.mjs shared requirements  # 按 requirements.json 报告资源缺口
 node run.mjs shared status        # 看缺口
 node run.mjs shared credits --write --force   # 从清单生成 CREDITS
 node run.mjs shared validate --strict
@@ -99,21 +118,27 @@ node run.mjs shared validate --strict
 | 命令 | 作用 |
 |---|---|
 | `node run.mjs shared init [--force]` | 生成缺失结构、建素材根与标准目录、回填字体元数据、生成 CREDITS、更新注册表 |
-| `node tools/assets.mjs add <文件\|目录\|URL> [...] [--keep]` | 复制/下载并自动登记（支持多个目标）；`--keep` 保留目录原结构；字体自动生成 `fonts.ts`，音频自动编入索引 |
+| `node tools/assets.mjs add <文件\|目录\|URL> [...] [--keep]` | 复制/下载并自动登记（支持多个目标）；`--keep` 保留目录原结构；字体自动生成 `fonts.ts`，音频自动编入索引，并更新 CREDITS |
+| `node tools/assets.mjs remove <path> [--keep-file]` | 取消清单/音频索引登记，同步 `fonts.ts` 与 CREDITS；默认删除磁盘文件，`--keep-file` 仅取消登记 |
 | `node tools/assets.mjs font list` | 列出清单里的字体条目与 family/weight |
 | `node tools/assets.mjs font set <path> [--family\|--weight\|--style]` | 修正字体元数据并重写 `shared/fonts.ts` |
 | `node tools/assets.mjs audio scan [--apply]` | 扫描所有素材根中的音频文件，登记未编入索引的条目（时长用 ffprobe） |
 | `node tools/assets.mjs audio set <id> [--category\|--gain\|--bpm\|--mood\|--energy\|--roles]` | 修改索引条目 |
 | `node tools/assets.mjs audio list` | 列出音乐/音效索引 |
 | `node run.mjs shared fonts [--write] [--json]` | 从清单字体条目生成 `shared/fonts.ts`（dry-run 打印） |
+| `node run.mjs shared requirements [--json] [--strict]` | 按 `shared/requirements.json` 报告字体/音效/BGM/kind 缺口 |
+| `node tools/assets.mjs check [--verify] [--strict] [--json] [--licenses] [--meta]` | 缺失、未登记、哈希、许可未知、字体/音频元数据缺失 |
 | `node run.mjs shared status [--json]` | 清单/字体/音频/预设/代码/工程素材/素材根 |
 | `node run.mjs shared validate [--strict] [--json]` | 结构/JSON/引用校验 |
 | `node tools/assets.mjs init` | 只建素材根与一级目录 |
 | `node tools/assets.mjs credits [--write] [--force]` | 从清单生成 `shared/CREDITS.md` |
 | `node tools/assets.mjs scan [--apply] [--prune]` | 登记/更新/移除条目 |
-| `node tools/assets.mjs check [--verify] [--strict]` | 缺失、未登记、哈希、许可 |
 | `npm run assets:fetch [-- --from <dir>]` | 按清单部署二进制 |
 | `node run.mjs sync --apply` | 注册表 + 清单 + 可选实拍 |
+
+**清单即锁定记录**：`path / size / sha256 / url / license / source`（市场导入另带 `provider / providerRef`）。`assets:fetch` 下载后按 `sha256` 校验，不符则不落盘并计入失败；`check --verify` 校验落盘文件与清单一致。
+
+复现：换机在线 → 拿到内容包 `shared/`（清单）→ `npm run assets:fetch` → `check --verify --strict`；断网 → `npm run assets:fetch -- --from <dir>` → `check --verify`，清单里的 `url` 不被访问。只有清单、无网络无副本时无法复现二进制。
 
 ## 7. 空核心与部分内容
 

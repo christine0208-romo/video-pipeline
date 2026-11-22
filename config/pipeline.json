@@ -141,6 +141,13 @@
     ],
     "pool": "all"
   },
+  "market": {
+    "defaults": {
+      "cacheHours": 24,
+      "searchLimit": 24,
+      "collectionLimit": 120
+    }
+  },
   "quality": {
     "autoAnalyze": true,
     "sampleFrames": 8,

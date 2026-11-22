@@ -5,13 +5,15 @@
  *   node tools/assets.mjs add <file|dir|url> [...] [--keep] [--kind K] [--license L] [--source S] [--name N] [--family F] [--weight N] [--force]
  *                                              导入一个或多个目标并自动登记；--keep 保留目录原结构；
  *                                              字体自动生成 shared/fonts.ts，音频自动编入索引
+ *   node tools/assets.mjs remove <path> [--keep-file]
+ *                                              取消清单/音频索引登记，默认删除磁盘文件
  *   node tools/assets.mjs font list              列出清单里的字体条目
  *   node tools/assets.mjs font set <path> [--family F] [--weight N] [--style italic]
  *                                              修正字体元数据并重写 shared/fonts.ts
  *   node tools/assets.mjs audio scan [--apply]  把 assets/music、assets/sfx 中未编入索引的文件登记
  *   node tools/assets.mjs audio set <id> [--bpm N] [--mood X] [--energy X] [--category X] [--gain N] [--roles a,b]
  *   node tools/assets.mjs audio list             列出 music / sfx 索引条目
- *   node tools/assets.mjs check [--verify] [--strict] [--allow-missing]
+ *   node tools/assets.mjs check [--verify] [--strict] [--allow-missing] [--json] [--licenses] [--meta]
  *   node tools/assets.mjs scan [--apply] [--prune] [--check]
  *   node tools/assets.mjs credits [--write] [--force]
  *   node tools/assets.mjs fetch [--download] [--from <dir>] [--force]
@@ -24,7 +26,7 @@
  * check / fetch / list 只报告未登记文件并以 0 退出（--strict 时未登记视为失败）。
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -44,6 +46,7 @@ import {
   isFontEntry,
   writeFontsTs,
 } from "../modules/lib/fonts.mjs";
+import { checkResources } from "../modules/lib/resources.mjs";
 import { loadConfig } from "../modules/lib/config.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -108,12 +111,7 @@ function init() {
   return 0;
 }
 
-function credits() {
-  if (!manifestExists) {
-    console.log("[assets] 没有清单：先运行 node run.mjs shared init 或 node run.mjs sync --apply");
-    return 1;
-  }
-  const entries = entriesOf();
+function creditsText() {
   const extras = [];
   if (existsSync(path.join(cfg.paths.repo, "docs", "reference", "shots"))) {
     extras.push(
@@ -129,7 +127,23 @@ function credits() {
       "- `shared/code/canvas-engine/engine.js`：作者自有代码，随内容包使用。",
     );
   }
-  const text = renderCredits(entries, { extras });
+  return renderCredits(entriesOf(), { extras });
+}
+
+function writeCreditsFile() {
+  const file = path.join(cfg.paths.shared, "CREDITS.md");
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, creditsText());
+  return file;
+}
+
+function credits() {
+  if (!manifestExists) {
+    console.log("[assets] 没有清单：先运行 node run.mjs shared init 或 node run.mjs sync --apply");
+    return 1;
+  }
+  const entries = entriesOf();
+  const text = creditsText();
   const file = path.join(cfg.paths.shared, "CREDITS.md");
   if (!flag("write")) {
     console.log(text);
@@ -143,6 +157,67 @@ function credits() {
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, text);
   console.log(`[assets] 已写 ${rel(file)}（${entries.length} 条）`);
+  return 0;
+}
+
+function removeAsset(target) {
+  const relative = normalizeAssetPath(target);
+  if (!relative || relative.startsWith("../") || path.isAbsolute(relative)) {
+    console.error("路径必须是素材根内的相对路径");
+    return 1;
+  }
+  const entryIndex = entriesOf().findIndex((entry) => entry.path === relative);
+  const file = findAssetFile(roots, relative);
+  const indexChanges = [];
+
+  for (const kind of Object.keys(AUDIO_KINDS)) {
+    const index = readAudioIndex(kind);
+    if (!index) return 1;
+    const key = AUDIO_KINDS[kind].key;
+    const entries = index[key] ?? [];
+    const next = entries.filter((entry) => {
+      const resolved = resolveAudioFile(roots, kind, entry.file);
+      return !(
+        entry.file === relative ||
+        (resolved && resolved.relative === relative)
+      );
+    });
+    if (next.length !== entries.length) {
+      index[key] = next;
+      index.generatedAt = new Date().toISOString();
+      writeFileSync(audioIndexFile(kind), `${JSON.stringify(index, null, 2)}\n`);
+      indexChanges.push(kind);
+    }
+  }
+
+  if (entryIndex < 0 && !file && !indexChanges.length) {
+    console.error(`清单、音频索引和磁盘都没有这个素材：${relative}`);
+    return 1;
+  }
+
+  if (entryIndex >= 0) entriesOf().splice(entryIndex, 1);
+  let deleted = false;
+  if (!flag("keep-file") && file) {
+    unlinkSync(file);
+    deleted = true;
+  }
+
+  if (entryIndex >= 0 || manifestExists) {
+    mkdirSync(path.dirname(manifestFile), { recursive: true });
+    manifest.generatedAt = new Date().toISOString();
+    writeFileSync(manifestFile, `${JSON.stringify(manifest, null, 2)}\n`);
+  }
+  if (manifestExists) {
+    writeFontsTs(cfg, manifest, { write: true });
+  }
+  const creditsFile = path.join(cfg.paths.shared, "CREDITS.md");
+  if (manifestExists && existsSync(creditsFile)) {
+    writeFileSync(creditsFile, creditsText());
+  }
+
+  console.log(
+    `[assets] 已移除 ${relative}：清单 ${entryIndex >= 0 ? "已取消登记" : "未登记"} / 音频索引 ${indexChanges.length ? indexChanges.join("、") : "无"} / 文件 ${deleted ? "已删除" : file ? "已保留（--keep-file）" : "不存在"} / fonts.ts 与 CREDITS 已同步`,
+  );
   return 0;
 }
 
@@ -423,6 +498,10 @@ function upsertEntry(relative, data, options) {
       : {}),
     ...(options.style ? { style: options.style } : {}),
   };
+  const providerMeta = {
+    ...(options.provider ? { provider: options.provider } : {}),
+    ...(options.ref ? { providerRef: options.ref } : {}),
+  };
   if (existing) {
     const next = { ...existing, ...info, provided: true };
     if (options.kind) next.kind = options.kind;
@@ -430,6 +509,7 @@ function upsertEntry(relative, data, options) {
     if (options.source) next.source = options.source;
     if (options.url) next.url = options.url;
     Object.assign(next, fontMeta);
+    Object.assign(next, providerMeta);
     Object.assign(existing, next);
     return "updated";
   }
@@ -442,6 +522,7 @@ function upsertEntry(relative, data, options) {
     source: options.source ?? "user",
     provided: true,
     ...fontMeta,
+    ...providerMeta,
   });
   return "added";
 }
@@ -456,6 +537,8 @@ const ADD_VALUE_FLAGS = new Set([
   "family",
   "weight",
   "style",
+  "provider",
+  "ref",
   "file",
 ]);
 
@@ -475,6 +558,25 @@ function addTargets() {
   return targets;
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** 下载重试：429 与 5xx 退避重试，其余状态原样返回给调用方报错。 */
+async function fetchWithRetry(url, attempts = 3) {
+  let lastError = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return response;
+      lastError = new Error(`HTTP ${response.status}`);
+      if (response.status !== 429 && response.status < 500) return response;
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < attempts - 1) await sleep(800 * (attempt + 1));
+  }
+  throw lastError;
+}
+
 async function add() {
   const targets = addTargets();
   if (!targets.length && value("file")) targets.push(value("file"));
@@ -492,6 +594,8 @@ async function add() {
   const family = value("family");
   const weight = value("weight");
   const style = value("style");
+  const providerId = value("provider");
+  const providerRef = value("ref");
   const files = [];
   let failed = 0;
 
@@ -499,7 +603,7 @@ async function add() {
     if (/^https?:\/\//i.test(target)) {
       let response;
       try {
-        response = await fetch(target);
+        response = await fetchWithRetry(target);
       } catch (error) {
         console.error(`下载失败 ${target}：${error.message}`);
         failed += 1;
@@ -568,6 +672,8 @@ async function add() {
       family,
       weight,
       style,
+      provider: providerId,
+      ref: providerRef,
     });
     if (result === "added") added += 1;
     else updated += 1;
@@ -588,6 +694,10 @@ async function add() {
       `[assets] 字体清单${fonts.written ? "已更新" : "最新"}：${rel(fonts.file)}（${fonts.entries} 条；改 family 用 node tools/assets.mjs font set <path> --family X）`,
     );
   }
+  if (added || updated || metaChanged) {
+    const creditsFile = writeCreditsFile();
+    console.log(`[assets] CREDITS 已更新：${rel(creditsFile)}`);
+  }
   console.log(
     `[assets] 新增 ${added} / 更新 ${updated} / 跳过 ${skipped} / 失败 ${failed}；需要署名时可在清单补 license/source，再运行 node run.mjs shared credits --write --force`,
   );
@@ -607,40 +717,99 @@ function unregisteredMessage() {
   return flag("strict") ? 1 : 0;
 }
 
-function check(verify = false) {
-  if (!manifestExists) return unregisteredMessage();
-  const allowMissing = flag("allow-missing");
-  const missing = [];
-  const badHash = [];
-  const diff = diffAssetFiles(entriesOf(), roots);
-  for (const entry of entriesOf()) {
-    const file = findAssetFile(roots, entry.path);
-    if (!file) {
-      missing.push(entry);
-      continue;
-    }
-    if (verify) {
-      const hash = sha256(readFileSync(file));
-      if (entry.sha256 && hash !== entry.sha256) badHash.push({ entry, hash });
-    }
+function checkExit(report, { allowMissing, strict }) {
+  if (report.badHash.length || report.brokenAudio.length || report.fontsStale) return 1;
+  if (!allowMissing && report.missing.length) return 1;
+  if (
+    strict &&
+    (report.unregistered.length ||
+      report.changed.length ||
+      report.licenses.unknown.length ||
+      report.meta.fonts.length ||
+      report.meta.audio.length)
+  ) {
+    return 1;
   }
-  for (const entry of missing) {
-    const how = entry.url ? "可 --download" : "需用户提供（--from <dir>）";
-    console.log(`缺少 ${entry.path} (${entry.kind}) — ${how}`);
+  return 0;
+}
+
+function printLicenseMeta(report) {
+  for (const item of report.licenses.unknown) {
+    console.log(`许可未知 ${item.path} (${item.kind}) — 可在清单补 license`);
   }
-  for (const item of badHash) {
-    console.log(`哈希不符 ${item.entry.path} — 期望 ${item.entry.sha256}，实际 ${item.hash}`);
+  for (const item of report.meta.fonts) {
+    console.log(`字体元数据缺失 ${item.path} — 用 assets font set 补 family/weight`);
   }
-  for (const item of diff.added) {
-    console.log(`未登记 ${item.path} — 运行 node tools/assets.mjs scan --apply`);
+  for (const item of report.meta.audio) {
+    console.log(
+      `音频元数据缺失 ${item.kind}/${item.id} — 缺 ${item.missing.join(", ")}；用 audio set 补`,
+    );
   }
   console.log(
-    `[assets] ${entriesOf().length} 条 / 未登记 ${diff.added.length} / 缺失 ${missing.length} / 哈希不符 ${badHash.length}`,
+    `[assets] 许可未知 ${report.licenses.unknown.length} / 字体元数据缺失 ${report.meta.fonts.length} / 音频元数据缺失 ${report.meta.audio.length}`,
   );
-  if (badHash.length) return 1;
-  if (!allowMissing && missing.length) return 1;
-  if (flag("strict") && diff.added.length) return 1;
-  return 0;
+}
+
+function check(verify = false) {
+  if (!manifestExists) {
+    if (flag("json")) {
+      console.log(
+        JSON.stringify(
+          {
+            ok: true,
+            manifest: false,
+            entries: 0,
+            roots: roots.map(rel),
+            missing: [],
+            unregistered: [],
+            changed: [],
+            badHash: [],
+            licenses: { unknown: [] },
+            meta: { fonts: [], audio: [] },
+            brokenAudio: [],
+            fontsStale: false,
+          },
+          null,
+          2,
+        ),
+      );
+      return 0;
+    }
+    return unregisteredMessage();
+  }
+  const allowMissing = flag("allow-missing");
+  const report = checkResources(cfg, { verify });
+  const exit = checkExit(report, { allowMissing, strict: flag("strict") });
+
+  if (flag("json")) {
+    console.log(JSON.stringify(report, null, 2));
+    return exit;
+  }
+  if (flag("licenses") || flag("meta")) {
+    printLicenseMeta(report);
+    return exit;
+  }
+
+  for (const item of report.missing) {
+    const how = item.url ? "可 --download" : "需用户提供（--from <dir>）";
+    console.log(`缺少 ${item.path} (${item.kind}) — ${how}`);
+  }
+  for (const item of report.badHash) {
+    console.log(`哈希不符 ${item.path} — 期望 ${item.expected}，实际 ${item.actual}`);
+  }
+  for (const item of report.unregistered) {
+    console.log(`未登记 ${item.path} — 运行 node tools/assets.mjs scan --apply`);
+  }
+  for (const item of report.brokenAudio) {
+    console.log(`音频文件缺失 ${item.kind}/${item.id} — ${item.file}`);
+  }
+  if (report.fontsStale) {
+    console.log("shared/fonts.ts 与清单不一致 — 运行 node run.mjs shared fonts --write");
+  }
+  console.log(
+    `[assets] ${report.entries} 条 / 未登记 ${report.unregistered.length} / 缺失 ${report.missing.length} / 哈希不符 ${report.badHash.length}${report.licenses.unknown.length ? ` / 许可未知 ${report.licenses.unknown.length}` : ""}`,
+  );
+  return exit;
 }
 
 function scan() {
@@ -678,9 +847,18 @@ function scan() {
       const removedPaths = new Set(removed.map((entry) => entry.path));
       manifest.assets = entriesOf().filter((entry) => !removedPaths.has(entry.path));
     }
+    let kindChanged = false;
+    for (const entry of entriesOf()) {
+      const dir = entry.path.split("/")[0];
+      const kind = KIND_BY_DIR[dir];
+      if (kind && entry.kind !== kind) {
+        entry.kind = kind;
+        kindChanged = true;
+      }
+    }
     const metaChanged = ensureFontMeta(manifest);
     const shouldWrite =
-      manifestExists || added.length > 0 || changed.length > 0 || metaChanged;
+      manifestExists || added.length > 0 || changed.length > 0 || metaChanged || kindChanged;
     if (shouldWrite) {
       mkdirSync(path.dirname(manifestFile), { recursive: true });
       manifest.generatedAt = new Date().toISOString();
@@ -692,6 +870,8 @@ function scan() {
       if (fonts.written) {
         console.log(`[assets] 字体清单已更新：${rel(fonts.file)}（${fonts.entries} 条）`);
       }
+      const creditsFile = writeCreditsFile();
+      console.log(`[assets] CREDITS 已更新：${rel(creditsFile)}`);
     } else {
       console.log("[assets] 素材根为空，未生成清单");
     }
@@ -713,12 +893,22 @@ async function download(entry) {
   const file = path.join(primaryRoot, ...entry.path.split("/"));
   mkdirSync(path.dirname(file), { recursive: true });
   console.log(`下载 ${entry.path} <- ${entry.url}`);
-  const response = await fetch(entry.url, { redirect: "follow" });
+  const response = await fetchWithRetry(entry.url);
   if (!response.ok) {
     console.error(`下载失败 ${entry.path}：HTTP ${response.status}`);
     return false;
   }
-  writeFileSync(file, Buffer.from(await response.arrayBuffer()));
+  const data = Buffer.from(await response.arrayBuffer());
+  if (entry.sha256) {
+    const digest = sha256(data);
+    if (digest !== entry.sha256) {
+      console.error(
+        `校验失败 ${entry.path}：sha256 不符（清单 ${entry.sha256.slice(0, 12)}…，下载 ${digest.slice(0, 12)}…）`,
+      );
+      return false;
+    }
+  }
+  writeFileSync(file, data);
   return true;
 }
 
@@ -783,6 +973,8 @@ const code =
     ? init()
     : command === "add"
       ? await add()
+      : command === "remove"
+        ? removeAsset(argv[1])
       : command === "audio"
         ? audioCommand(argv[1] ?? "scan")
       : command === "font"
@@ -796,7 +988,7 @@ const code =
             : command === "check"
               ? check(flag("verify"))
               : (console.log(
-                  "用法：node tools/assets.mjs init|add|audio|font|check|scan|credits|fetch|list [--verify] [--strict] [--apply] [--prune] [--check] [--write] [--from <dir>] [--download] [--force] [--manifest <file>] [--kind K] [--license L] [--source S] [--name N] [--family X] [--weight N] [--style italic]",
+                  "用法：node tools/assets.mjs init|add|remove|audio|font|check|scan|credits|fetch|list [--verify] [--strict] [--allow-missing] [--json] [--licenses] [--meta] [--keep-file] [--apply] [--prune] [--check] [--write] [--from <dir>] [--download] [--force] [--manifest <file>] [--kind K] [--license L] [--source S] [--name N] [--family X] [--weight N] [--style italic]",
                 ), 1);
 
 process.exit(code);

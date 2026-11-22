@@ -8,6 +8,7 @@ import { scanProjects } from "../modules/lib/projects.mjs";
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG = path.join(ROOT, "config", "pipeline.json");
 const SCHEMA = path.join(ROOT, "config", "pipeline.schema.json");
+const WORKBENCH = path.join(ROOT, "config", "workbench.json");
 
 const fail = (message) => {
   throw new Error(`[config] ${message}`);
@@ -119,8 +120,48 @@ function checkProjectManifests() {
   if (errors.length) fail(errors[0]);
 }
 
-function checkCrossReferences(config) {
-  const beatRoles = new Set(["hook", "build", "proof", "turn", "close"]);
+function checkLabels() {
+  if (!existsSync(WORKBENCH)) fail(`缺少 ${path.relative(ROOT, WORKBENCH)}`);
+  let data;
+  try {
+    data = JSON.parse(readFileSync(WORKBENCH, "utf8"));
+  } catch (error) {
+    fail(`workbench.json 无法解析：${error.message}`);
+  }
+  if (!isObject(data.stages)) fail("workbench.stages 必须是对象");
+  if (!isObject(data.labels)) fail("workbench.labels 必须是对象");
+  const required = [
+    "category",
+    "layer",
+    "status",
+    "qualityFlag",
+    "jobStatus",
+    "stage",
+    "matrix",
+    "resourceKind",
+    "resourceTab",
+    "resourceMode",
+    "beat",
+    "action",
+    "qualityMetric",
+  ];
+  for (const group of required) {
+    if (!data.labels[group]) fail(`workbench.labels.${group} 缺失`);
+  }
+  for (const [group, entries] of Object.entries(data.labels)) {
+    if (!isObject(entries)) fail(`workbench.labels.${group} 必须是对象`);
+    for (const [key, entry] of Object.entries(entries)) {
+      if (!isObject(entry) || typeof entry.label !== "string" || !entry.label.trim()) {
+        fail(`workbench.labels.${group}.${key} 缺少 label`);
+      }
+      if (entry.hint !== undefined && typeof entry.hint !== "string") {
+        fail(`workbench.labels.${group}.${key}.hint 必须是字符串`);
+      }
+    }
+  }
+}
+
+function checkCrossReferences(config) {  const beatRoles = new Set(["hook", "build", "proof", "turn", "close"]);
   const beatTotal = config.mix.beats.reduce((sum, beat) => {
     if (!beatRoles.has(beat.role)) fail(`mix.beats 有未知 role：${beat.role}`);
     if (typeof beat.ratio !== "number" || beat.ratio <= 0) fail(`mix.beats.${beat.role} ratio 必须大于 0`);
@@ -137,10 +178,11 @@ try {
   const config = JSON.parse(readFileSync(CONFIG, "utf8"));
   const schema = JSON.parse(readFileSync(SCHEMA, "utf8"));
   checkNode(config, schema, "config");
+  checkLabels();
   checkGeneratedManifest();
   checkProjectManifests();
   checkCrossReferences(config);
-  console.log("配置检查通过：schema、范围、beat、preset/recipe 引用均有效。");
+  console.log("配置检查通过：schema、labels、范围、beat、preset/recipe 引用均有效。");
 } catch (error) {
   console.error(error.stack || error.message);
   process.exit(1);

@@ -30,3 +30,4 @@
 | 024 | 四层分离：core / shared / creative / assets | 有效 |
 | 025 | 核心不含视觉转场/后期；vendor 并入 engine | 有效 |
 | 026 | shared/assets 作为系统与用户共同管理的区域 | 有效 |
+| 027 | 市场只留中性默认值；清单即锁定记录 | 有效 |

@@ -359,3 +359,25 @@
   - 新机器多一步 `shared init`；
   - 结构变化需要同时更新模板、校验与文档，并在未来引入 version 迁移；
   - 仓库里看不到用户的实际资源（这是刻意的：二进制与许可元数据属于用户）。
+
+## ADR-027 · 市场只留中性默认值；清单即锁定记录
+
+- 背景：Phase 2 要加 Google Fonts provider 并回答“URL 会变、内容会被上游替换，怎么固定与复现”。同时 `config/pipeline.json` 里写着 Iconify 的 type/baseUrl，等于把某一条来源写进了核心默认值。
+- 选项（来源配置）：
+  1. 在 `config/pipeline.json` 里继续写来源默认值；
+  2. 核心只留中性默认值（缓存、条数），推荐来源写 `config/local.example.json`，实际来源写 `config/local.json`；
+  3. 把来源清单做成独立文件（如 `config/providers.json`）。
+- 选项（锁定）：
+  1. 另建共享 lock 文件（`shared/assets.lock.json`）；
+  2. 清单即锁：`path/size/sha256/url/license/source` 加 `provider/providerRef`，`assets fetch` 下载后校验；
+  3. 清单 + 只记 provider 引用的混合 lock。
+- 结论：来源用 2，锁定用 2：
+  - `market.defaults` 只保留 `cacheHours/searchLimit/collectionLimit`；`config/local.example.json` 提供 Iconify 与 Google Fonts 两条推荐来源，工作台“添加来源”用它预填模板，用户可改、可不用；
+  - Google Fonts 的目录地址是 provider 字段 `catalogUrl`（默认 Fontsource 镜像，因部分网络下官方目录端点不可达），字体文件按字族+字重从 CSS2 解析 `woff2`；许可取目录记录，不猜测；
+  - 导入继续复用 `assets add`，清单补 `provider` 与 `providerRef`；`assets fetch` 下载后按清单 `sha256` 校验，不符不落盘；
+  - 不另建 lock 文件，避免第二真相源。
+- 代价：
+  - 换机需要重新添加市场来源（复现不依赖它，`url + sha256` 已在清单）；
+  - 清单同时承担“内容包索引”和“锁定记录”，条目略长；
+  - 上游内容被替换时必须重新导入并接受新哈希，不做自动升级；
+  - 字体默认只取一个子集（`latin`），中文正文仍依赖本地字体。

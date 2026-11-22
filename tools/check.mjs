@@ -55,7 +55,7 @@ const required = [
   "config/pipeline.json",
   "config/pipeline.schema.json",
   "config/components.json",
-  "config/parameters.json",
+  "config/workbench.json",
   "run.mjs",
   "src/index.ts",
   "src/platform.ts",
@@ -69,10 +69,13 @@ const required = [
   "modules/creative/review.mjs",
   "tools/init-creative.mjs",
   "tools/assets.mjs",
+  "tools/market.mjs",
   "tools/sync.mjs",
   "tools/projects.mjs",
   "tools/shared.mjs",
   "modules/lib/assets.mjs",
+  "modules/lib/resources.mjs",
+  "modules/lib/market.mjs",
   "modules/lib/projects.mjs",
   "docs/architecture/CREATIVE.md",
   "modules/quality/index.mjs",
@@ -96,6 +99,7 @@ const required = [
   "docs/operations/WORKFLOW.md",
   "docs/architecture/ARCHITECTURE.md",
   "docs/architecture/AUDIO.md",
+  "docs/architecture/MARKET.md",
   "docs/operations/FISSION.md",
   "docs/operations/QUALITY.md",
   "docs/architecture/ASSETS.md",
@@ -265,6 +269,40 @@ if (edlFiles.length) {
     problems.push(`EDL 校验失败：\n${(result.stdout ?? "") + (result.stderr ?? "")}`);
   }
 }
+
+// 8. 新增核心文件闸门
+const CORE_PREFIXES = ["modules/", "tools/", "src/", "common/", "workbench/", "config/"];
+const isCoreFile = (file) =>
+  CORE_PREFIXES.some((prefix) => file.startsWith(prefix)) || !file.includes("/");
+const newFileGate = () => {
+  const allow =
+    process.env.ALLOW_NEW_FILES === "1" ||
+    process.argv.includes("--allow-new-files");
+  const status = spawnSync("git", ["status", "--porcelain=v1", "-uall"], {
+    cwd: ROOT,
+    encoding: "utf8",
+  });
+  if (status.status !== 0) return;
+  const added = [];
+  for (const line of (status.stdout ?? "").split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const index = line.slice(0, 2);
+    const file = line.slice(3).trim();
+    if (!file) continue;
+    if (!(index === "??" || index[0] === "A")) continue;
+    if (!isCoreFile(file)) continue;
+    added.push(file);
+  }
+  if (!added.length) return;
+  if (allow) {
+    warnings.push(`新增核心文件已放行（ALLOW_NEW_FILES=1）：${added.join("、")}`);
+    return;
+  }
+  problems.push(
+    `新增核心文件未确认：${added.join("、")}\n新增核心文件前先按 docs/reference/RULES.md 第 11 节给出四问；确认后运行 ALLOW_NEW_FILES=1 npm run check。`,
+  );
+};
+newFileGate();
 
 if (warnings.length) {
   for (const warning of warnings) console.warn(`! ${warning}`);

@@ -32,6 +32,7 @@
 
 - 先查素材库 `assets/`（`assets.roots` 可配多根）；需要镜头语汇时查 `docs/reference/shots`（仅参考，不参与运行时）；没有再新增。
 - 素材二进制不入库：新增文件后运行 `node tools/assets.mjs scan --apply` 登记到 `shared/assets.manifest.json`，再补 license 并更新 `shared/CREDITS.md`；用户可用 `npm run assets:fetch -- --from <dir>` 部署。
+- 清单里的 `sha256` 是锁定记录：`assets fetch` 下载后按它校验，不符即失败；不要改哈希绕过校验，也不要为同一路径写入不同内容。
 - 新增图标/字体/地图/音乐/纹理：
   - 放进素材根（默认 `assets/`，或 `assets.roots` 里的任一根）；
   - `assets scan --apply` 登记（`license` / `source` 可选，需要署名时再补）；
@@ -105,4 +106,17 @@
 - `npm run typecheck`。
 - `node run.mjs check`：已有 EDL 的签名/区间/时长。
 - 看一遍本段静帧；至少抽 3 帧。
-- 更新相关文档；计划进度写进 `docs/PLAN-NEXT.md`；可执行规则写进本文件，完整踩坑按记录规则归档到 `docs/records` 与 `docs/archive`。
+- 更新相关文档；进度写进提交说明；可执行规则写进本文件，完整踩坑按记录规则归档到 `docs/records` 与 `docs/archive`。
+
+## 11. 新增文件闸门
+
+新增任何核心文件（`modules/`、`tools/`、`src/`、`common/`、`workbench/`、`config/`）之前，必须先说明四件事：
+
+1. **职责**：解决什么问题？现有文件为什么不能承载？
+2. **替代**：扩展现有文件 / 配置项 / 已有依赖 / 目录内文件，是否可行？
+3. **优缺点**：新增 vs 替代（耦合、维护成本、重复造轮子、边界）。
+4. **结论**：新增 / 不新增。新增必须得到用户确认，或同时满足：独立消费者、独立依赖方向、稳定职责。
+
+禁止：为一次性逻辑新建模块、把可配置内容写成代码、把已有库能力再包一层、为“以后可能”预留文件。新增文件未在提交说明或提案中记录四问，视为未批准。
+
+机械闸门：`npm run check` 会检测未确认的新增核心文件（`modules/`、`tools/`、`src/`、`common/`、`workbench/`、`config/` 与根目录文件）。确认后运行 `ALLOW_NEW_FILES=1 npm run check` 放行。

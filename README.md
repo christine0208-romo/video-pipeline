@@ -41,6 +41,7 @@ npm run doctor                # 体检；此时会提示素材未部署，属正
 
 ```bash
 # 把视频放进 footage/ 目录，或在本机配置里指定绝对路径：
+#   cp config/local.example.json config/local.json
 #   config/local.json -> { "footage": { "roots": ["D:/my-footage"] } }
 node run.mjs scan             # 扫描成 data/library.json；看缩略图确认画面
 ```
@@ -169,7 +170,9 @@ node run.mjs check                 # 已有 EDL 的去重/时长校验
 |---|---|---|
 | `config/pipeline.json` | 可移植默认值：`spec`、`footage.roots`、`assets.roots`、`shared.root`、`creative.root`、`mix` | 是 |
 | `config/local.json` | 本机覆盖：素材绝对路径、ffmpeg 路径 | 否 |
-| `config/parameters.json` | 工作台任务表单的字段 | 是 |
+| `config/workbench.json` | 工作台界面元数据：任务表单（`stages`）与枚举标签/提示（`labels`） | 是 |
+
+资源市场只把中性默认值（缓存、条数）放在 `config/pipeline.json` 的 `market.defaults`；推荐来源模板在 `config/local.example.json`，具体来源写进 `config/local.json` 的 `market.providers`（不提交）。
 
 不要为了本机路径改 `pipeline.json`；写进 `config/local.json`（参考 `local.example.json`）。
 
@@ -186,7 +189,6 @@ config/        主配置与本机覆盖
 tools/         doctor / check / assets / shared / sync / projects / reindex / cache
 workbench/     本地 Web 工作台
 docs/          分类文档（入口：docs/README.md）
-docs/PLAN-NEXT.md  当前计划（完成后删除）
 shared/        公共资源层：清单、字体/音频索引、预设、公共代码（本地，gitignore）
 creative/      创意工程包：每个工程独立的引擎、变体、可选本地素材（本地，gitignore）
 assets/        素材文件库：fonts / icons / music / sfx / brand / map（本地，gitignore）

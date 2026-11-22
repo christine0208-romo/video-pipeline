@@ -133,6 +133,13 @@
         "pool": {"type": ["string", "array"]}
       }
     },
+    "market": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "defaults": { "type": "object", "additionalProperties": true }
+      }
+    },
     "quality": {"type": "object"}
   }
 }

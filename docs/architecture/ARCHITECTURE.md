@@ -17,7 +17,7 @@
 - `data/`、`out/`、`public/` 是运行时区域，不是核心源码；`public/` 只做 Remotion 静态投影。
 - `config/pipeline.json` 是稳定项目策略唯一来源；`config/pipeline.schema.json` 与 `tools/check-config.mjs` 校验字段、beat、引擎/创意、组件和项目 manifest 引用。
 - `creative/engines/*/engine.json` 与 `index.tsx` 是引擎的唯一来源；`creative/registry.ts` 由 scan 生成，必须与引擎包一致。
-- 工作台参数元数据在 `config/parameters.json`，接口为 `/api/config`、`/api/parameters`、`/api/components`。
+- 工作台界面元数据在 `config/workbench.json`（任务表单 `stages` + 枚举文案 `labels`），接口为 `/api/config`、`/api/parameters`、`/api/components`、`/api/labels`。
 - 缓存和迁移：`node run.mjs cache list|clean`、`node run.mjs public [--apply]`；删除和实体目录替换默认 dry-run/拒绝冲突。
 
 | 模块 | 入口 | 职责 | 关键函数 |
@@ -199,10 +199,13 @@ shared/audio/music.index.json
 | 位置 | 作用 |
 |---|---|
 | `modules/lib/assets.mjs` | 素材库多根：`scanAssetFiles` / `diffAssetFiles` / `findAssetFile` / `resolveAudioFile` / `sha256` |
+| `modules/lib/resources.mjs` | 资源视图：`inventory` / `checkResources` / `requirementsStatus`（工作台与 CLI 共用） |
+| `modules/lib/market.mjs` | 市场目录：`searchIconify` / `resolveIconifyIcon` / `marketProviders`，缓存图标集元数据 |
 | `modules/lib/fonts.mjs` | 字体清单：从清单字体条目推断/生成 `shared/fonts.ts` |
 | `modules/lib/projects.mjs` | 扫描 `projects/*/project.json`，校验 id、目录、脚本入口 |
 | `tools/shared.mjs` | 公共资源层：`init` 生成结构 / `status` 报告 / `validate` 校验 / `fonts` 生成字体清单（规范见 `docs/architecture/SHARED.md`） |
 | `tools/assets.mjs` | 清单 CLI：`add / check / scan / fetch / list / font / audio`（scan 支持 `--apply --prune --check`） |
+| `tools/market.mjs` | 市场 CLI：`search` / `import`，导入复用 `assets add` |
 | `tools/sync.mjs` | 统一同步：注册表 + 素材清单 + 可选实拍（`--apply / --check / --footage`） |
 | `tools/projects.mjs` | 项目包 CLI：`scan` |
 | `tools/init-creative.mjs` | 注册表缺失时生成空注册表（postinstall） |
