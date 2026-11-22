@@ -246,7 +246,7 @@ npm run typecheck
 node run.mjs check
 ```
 
-- 更新相关文档；计划进度写进 `docs/PLAN-NEXT.md`。
+- 更新相关文档；进度写进提交说明。
 - 新坑按记录规则归档：详情进 `docs/archive/LESSONS-HISTORY.md`，可执行规则进 `docs/records/LESSONS.md`。
 - 新组件更新 `docs/architecture/ARCHITECTURE.md`。
 - 新素材更新 `shared/CREDITS.md`（由 `shared credits` 生成）。
@@ -375,14 +375,14 @@ ALLOW_NEW_FILES=1 npm run check                  # 仅在新文件四问已确�
 | `exp/<slug>` | 试验，不合并 | 按需 |
 
 - 一个分支只做一个版本；不要在同一分支混入下一个小版本。
-- 不在 `main` 上直接开发。当前这次大改动是例外：已作为 `v0.0.2` 直接进入 `main`。
+- 不在 `main` 上直接开发。当前 `v0.0.2` 与 `v0.0.3` 都在 `feat/resource-market` 上，`main` 仍为 `v0.0.1`；合并完成前不要打 tag。
 - 合并前跑完整门禁；合并后在 `main` 上打 tag 并推送。
 
 ### 13.3 发布流程
 
 ```bash
 git switch -c feat/<slug>
-# 开发，更新 PLAN-NEXT 与相关文档
+# 开发，更新相关文档
 npm version patch --no-git-tag-version    # 开发迭代用 patch；只有用户宣布稳定点才用 minor；正式发行用 1.0.0
 npm run check && npm run typecheck
 node run.mjs shared validate --strict --json

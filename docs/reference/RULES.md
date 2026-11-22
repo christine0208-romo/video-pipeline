@@ -106,7 +106,7 @@
 - `npm run typecheck`。
 - `node run.mjs check`：已有 EDL 的签名/区间/时长。
 - 看一遍本段静帧；至少抽 3 帧。
-- 更新相关文档；计划进度写进 `docs/PLAN-NEXT.md`；可执行规则写进本文件，完整踩坑按记录规则归档到 `docs/records` 与 `docs/archive`。
+- 更新相关文档；进度写进提交说明；可执行规则写进本文件，完整踩坑按记录规则归档到 `docs/records` 与 `docs/archive`。
 
 ## 11. 新增文件闸门
 

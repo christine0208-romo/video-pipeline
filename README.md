@@ -189,7 +189,6 @@ config/        主配置与本机覆盖
 tools/         doctor / check / assets / shared / sync / projects / reindex / cache
 workbench/     本地 Web 工作台
 docs/          分类文档（入口：docs/README.md）
-docs/PLAN-NEXT.md  当前计划（完成后删除）
 shared/        公共资源层：清单、字体/音频索引、预设、公共代码（本地，gitignore）
 creative/      创意工程包：每个工程独立的引擎、变体、可选本地素材（本地，gitignore）
 assets/        素材文件库：fonts / icons / music / sfx / brand / map（本地，gitignore）
